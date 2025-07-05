@@ -1,0 +1,9 @@
+/cmd
+  /server         # Main entry point
+/internal
+  /core           # Business logic
+  /providers      # Registrar adapters
+  /storage        # Database abstraction
+  /types          # Data models
+  /api            # HTTP handlers
+/config           # Configuration files
