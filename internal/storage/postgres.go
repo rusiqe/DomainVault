@@ -203,6 +203,19 @@ func (r *PostgresRepo) GetByFilter(filter types.DomainFilter) ([]types.Domain, e
 	return domains, nil
 }
 
+// GetDomainsByName retrieves domains by exact name match
+func (r *PostgresRepo) GetDomainsByName(name string) ([]types.Domain, error) {
+	var domains []types.Domain
+	query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, http_status, last_status_check, status_message FROM domains WHERE name = $1"
+	
+	err := r.db.Select(&domains, query, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get domains by name: %w", err)
+	}
+	
+	return domains, nil
+}
+
 // Delete removes a domain by ID
 func (r *PostgresRepo) Delete(id string) error {
 	result, err := r.db.Exec("DELETE FROM domains WHERE id = $1", id)

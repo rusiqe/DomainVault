@@ -1248,6 +1248,261 @@
             border-radius: 6px;
             min-width: 150px;
         }
+
+        /* Bulk DNS Management Styles */
+        .bulk-dns-tabs {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 24px;
+        }
+        
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #65676b;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .tab-btn:hover {
+            color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .tab-btn.active {
+            color: #1877f2;
+            border-bottom-color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .bulk-tab-content {
+            display: none;
+        }
+        
+        .bulk-tab-content.active {
+            display: block;
+        }
+        
+        .bulk-operation-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .bulk-form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .domain-selection-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .domain-selection-container select {
+            min-height: 200px;
+            padding: 8px;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        
+        .selection-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nameserver-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .nameserver-inputs input {
+            padding: 10px;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+        }
+        
+        .bulk-preview-section {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .bulk-preview-section h4 {
+            margin: 0 0 12px 0;
+            color: #1c1e21;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .preview-container {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            padding: 12px;
+            min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .preview-empty {
+            color: #65676b;
+            font-style: italic;
+            margin: 0;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .preview-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #f0f2f5;
+            border-radius: 6px;
+            border-left: 4px solid #1877f2;
+        }
+        
+        .preview-domain {
+            font-weight: 600;
+            color: #1c1e21;
+            margin-bottom: 4px;
+        }
+        
+        .preview-change {
+            font-size: 14px;
+            color: #65676b;
+        }
+        
+        .preview-change.new {
+            color: #42b883;
+        }
+        
+        .preview-change.update {
+            color: #f39c12;
+        }
+        
+        .bulk-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            padding: 16px 0;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .file-upload-area {
+            border: 2px dashed #dddfe2;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .upload-placeholder i {
+            font-size: 32px;
+            color: #1877f2;
+        }
+        
+        .upload-placeholder p {
+            margin: 0;
+            font-weight: 500;
+            color: #1c1e21;
+        }
+        
+        .upload-placeholder small {
+            color: #65676b;
+        }
+        
+        .csv-example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        
+        .csv-example pre {
+            margin: 0;
+            font-size: 12px;
+            color: #495057;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .csv-preview-section {
+            margin-top: 24px;
+        }
+        
+        .csv-preview-section h4 {
+            margin: 0 0 16px 0;
+            color: #1c1e21;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .upload-section {
+            margin-bottom: 24px;
+        }
+        
+        .form-hint {
+            color: #65676b;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .card-subtitle {
+            color: #65676b;
+            font-size: 14px;
+            margin: 4px 0 0 0;
+        }
+        
+        /* Security confirmation styles */
+        .security-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .security-warning i {
+            color: #f39c12;
+            font-size: 18px;
+        }
+        
+        .security-warning p {
+            margin: 0;
+            color: #856404;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -1731,6 +1986,209 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Bulk DNS Management -->
+            <div class="card" id="bulkDnsCard">
+                <div class="card-header">
+                    <h2 class="card-title">Bulk DNS Management</h2>
+                    <p class="card-subtitle">Manage DNS settings across multiple domains with security approval</p>
+                </div>
+                <div class="card-content">
+                    <!-- Bulk Operations Tabs -->
+                    <div class="bulk-dns-tabs">
+                        <button class="tab-btn active" data-tab="bulk-ip" onclick="switchBulkTab('bulk-ip')">
+                            <i class="fas fa-network-wired"></i>
+                            Bulk IP Assignment
+                        </button>
+                        <button class="tab-btn" data-tab="bulk-nameservers" onclick="switchBulkTab('bulk-nameservers')">
+                            <i class="fas fa-server"></i>
+                            Nameserver Changes
+                        </button>
+                        <button class="tab-btn" data-tab="bulk-upload" onclick="switchBulkTab('bulk-upload')">
+                            <i class="fas fa-upload"></i>
+                            CSV Upload
+                        </button>
+                    </div>
+
+                    <!-- Bulk IP Assignment Tab -->
+                    <div id="bulk-ip" class="bulk-tab-content active">
+                        <div class="bulk-operation-section">
+                            <div class="bulk-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Select Domains</label>
+                                    <div class="domain-selection-container">
+                                        <select id="bulkIpDomains" class="form-control" multiple size="8">
+                                            <!-- Will be populated by JavaScript -->
+                                        </select>
+                                        <div class="selection-actions">
+                                            <button class="btn btn-sm btn-secondary" onclick="selectAllDomains('bulkIpDomains')">
+                                                Select All
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="clearDomainSelection('bulkIpDomains')">
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">New IP Address</label>
+                                    <input type="text" id="bulkNewIp" class="form-control" placeholder="192.168.1.100" pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$">
+                                    <small class="form-hint">Enter the IP address to assign to all selected domains (A record)</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Record Name (optional)</label>
+                                    <input type="text" id="bulkRecordName" class="form-control" placeholder="www" value="@">
+                                    <small class="form-hint">@ for root domain, www for www subdomain, or custom name</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">TTL (seconds)</label>
+                                    <select id="bulkTtl" class="form-control">
+                                        <option value="300">5 minutes (300)</option>
+                                        <option value="1800">30 minutes (1800)</option>
+                                        <option value="3600" selected>1 hour (3600)</option>
+                                        <option value="86400">24 hours (86400)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bulk-preview-section">
+                                <h4>Preview Changes</h4>
+                                <div id="bulkIpPreview" class="preview-container">
+                                    <p class="preview-empty">Select domains and enter IP to preview changes</p>
+                                </div>
+                            </div>
+                            <div class="bulk-actions">
+                                <button class="btn btn-primary" onclick="previewBulkIpChanges()">
+                                    <i class="fas fa-eye"></i>
+                                    Preview Changes
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('ip')" disabled id="bulkIpApplyBtn">
+                                    <i class="fas fa-check"></i>
+                                    Apply Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nameserver Changes Tab -->
+                    <div id="bulk-nameservers" class="bulk-tab-content">
+                        <div class="bulk-operation-section">
+                            <div class="bulk-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Select Domains</label>
+                                    <div class="domain-selection-container">
+                                        <select id="bulkNsDomains" class="form-control" multiple size="8">
+                                            <!-- Will be populated by JavaScript -->
+                                        </select>
+                                        <div class="selection-actions">
+                                            <button class="btn btn-sm btn-secondary" onclick="selectAllDomains('bulkNsDomains')">
+                                                Select All
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="clearDomainSelection('bulkNsDomains')">
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">New Nameservers</label>
+                                    <div class="nameserver-inputs">
+                                        <input type="text" id="ns1" class="form-control" placeholder="ns1.example.com">
+                                        <input type="text" id="ns2" class="form-control" placeholder="ns2.example.com">
+                                        <input type="text" id="ns3" class="form-control" placeholder="ns3.example.com (optional)">
+                                        <input type="text" id="ns4" class="form-control" placeholder="ns4.example.com (optional)">
+                                    </div>
+                                    <small class="form-hint">Enter at least 2 nameservers. Additional nameservers are optional.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Nameserver Presets</label>
+                                    <select id="nsPresets" class="form-control" onchange="applyNameserverPreset()">
+                                        <option value="">Choose preset...</option>
+                                        <option value="cloudflare">Cloudflare</option>
+                                        <option value="godaddy">GoDaddy</option>
+                                        <option value="namecheap">Namecheap</option>
+                                        <option value="aws">AWS Route 53</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bulk-preview-section">
+                                <h4>Preview Changes</h4>
+                                <div id="bulkNsPreview" class="preview-container">
+                                    <p class="preview-empty">Select domains and enter nameservers to preview changes</p>
+                                </div>
+                            </div>
+                            <div class="bulk-actions">
+                                <button class="btn btn-primary" onclick="previewBulkNsChanges()">
+                                    <i class="fas fa-eye"></i>
+                                    Preview Changes
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('nameservers')" disabled id="bulkNsApplyBtn">
+                                    <i class="fas fa-check"></i>
+                                    Apply Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CSV Upload Tab -->
+                    <div id="bulk-upload" class="bulk-tab-content">
+                        <div class="bulk-operation-section">
+                            <div class="upload-section">
+                                <div class="form-group">
+                                    <label class="form-label">Upload CSV File</label>
+                                    <div class="file-upload-area" id="csvUploadArea">
+                                        <input type="file" id="csvFileInput" accept=".csv" onchange="handleCsvUpload(event)" style="display: none;">
+                                        <div class="upload-placeholder" onclick="document.getElementById('csvFileInput').click()">
+                                            <i class="fas fa-upload"></i>
+                                            <p>Click to select CSV file or drag and drop</p>
+                                            <small>Expected format: domain,record_type,name,value,ttl,nameserver1,nameserver2</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">CSV Format Example</label>
+                                    <div class="csv-example">
+                                        <pre>domain,record_type,name,value,ttl,nameserver1,nameserver2
+example.com,A,@,192.168.1.100,3600,ns1.cloudflare.com,ns2.cloudflare.com
+test.com,A,www,192.168.1.101,3600,ns1.godaddy.com,ns2.godaddy.com
+mysite.org,CNAME,blog,myblog.wordpress.com,1800,,</pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="csv-preview-section" id="csvPreviewSection" style="display: none;">
+                                <h4>Parsed Data Preview</h4>
+                                <div class="table-container">
+                                    <table id="csvPreviewTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Domain</th>
+                                                <th>Current Settings</th>
+                                                <th>Proposed Changes</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="bulk-actions" id="csvActions" style="display: none;">
+                                <button class="btn btn-secondary" onclick="downloadCsvTemplate()">
+                                    <i class="fas fa-download"></i>
+                                    Download Template
+                                </button>
+                                <button class="btn btn-primary" onclick="validateCsvData()">
+                                    <i class="fas fa-check-circle"></i>
+                                    Validate Data
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('csv')" disabled id="csvApplyBtn">
+                                    <i class="fas fa-upload"></i>
+                                    Apply CSV Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section id="categories" class="content-section">
@@ -2146,6 +2604,50 @@
                 <button type="button" class="btn btn-success" onclick="updateDNSRecord()">
                     <i class="fas fa-save"></i>
                     Update Record
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk DNS Confirmation Modal -->
+    <div id="bulkConfirmationModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Confirm Bulk DNS Changes</h2>
+                <button class="modal-close" onclick="hideBulkConfirmationModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="security-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>You are about to make changes to multiple domains. This action cannot be undone.</p>
+                </div>
+                
+                <div id="bulkConfirmationSummary">
+                    <!-- Will be populated with change summary -->
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Enter your password to confirm:</label>
+                    <input type="password" id="bulkConfirmPassword" class="form-control" placeholder="Admin password" required>
+                    <small class="form-hint">Password confirmation is required for bulk DNS operations</small>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="confirmBulkChanges">
+                            I understand that these changes will affect multiple domains and acknowledge the security implications
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideBulkConfirmationModal()">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkChanges()" id="executeBulkBtn" disabled>
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Execute Changes
                 </button>
             </div>
         </div>

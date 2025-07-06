@@ -13,6 +13,7 @@ type DomainRepository interface {
 	GetAll() ([]types.Domain, error)
 	GetByID(id string) (*types.Domain, error)
 	GetByFilter(filter types.DomainFilter) ([]types.Domain, error)
+	GetDomainsByName(name string) ([]types.Domain, error)
 	Delete(id string) error
 	Update(domain *types.Domain) error
 	

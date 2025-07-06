@@ -63,6 +63,36 @@ func (d *DNSService) UpdateRecord(record *types.DNSRecord) error {
 	return d.repo.UpdateRecord(record)
 }
 
+// CreateOrUpdateRecord creates a new DNS record or updates existing one with same type and name
+func (d *DNSService) CreateOrUpdateRecord(record types.DNSRecord) error {
+	if err := d.validateRecord(&record); err != nil {
+		return fmt.Errorf("invalid DNS record: %w", err)
+	}
+
+	// Check if a record with same type and name already exists
+	existingRecords, err := d.repo.GetRecordsByDomain(record.DomainID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing records: %w", err)
+	}
+
+	// Find existing record with same type and name
+	for _, existing := range existingRecords {
+		if existing.Type == record.Type && existing.Name == record.Name {
+			// Update existing record
+			record.ID = existing.ID
+			record.CreatedAt = existing.CreatedAt
+			record.UpdatedAt = time.Now()
+			return d.repo.UpdateRecord(&record)
+		}
+	}
+
+	// Create new record if no existing record found
+	now := time.Now()
+	record.CreatedAt = now
+	record.UpdatedAt = now
+	return d.repo.CreateRecord(&record)
+}
+
 // DeleteRecord deletes a DNS record
 func (d *DNSService) DeleteRecord(id string) error {
 	return d.repo.DeleteRecord(id)

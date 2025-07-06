@@ -166,3 +166,15 @@ func (a *AuthService) CreateDefaultAdmin() error {
 
 	return a.repo.CreateUser(admin)
 }
+
+// VerifyCurrentUserPassword verifies the current user's password for security operations
+func (a *AuthService) VerifyCurrentUserPassword(userID, password string) bool {
+	user, err := a.repo.GetUserByID(userID)
+	if err != nil {
+		return false
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	return err == nil
+}

@@ -83,6 +83,11 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.PUT("/dns/:id", h.UpdateDNSRecord)
 		admin.DELETE("/dns/:id", h.DeleteDNSRecord)
 		admin.GET("/dns/templates", h.GetDNSTemplates)
+		
+		// Bulk DNS operations
+		admin.POST("/dns/bulk/ip", h.BulkAssignIP)
+		admin.POST("/dns/bulk/nameservers", h.BulkUpdateNameservers)
+		admin.POST("/dns/bulk/csv", h.BulkUpdateFromCSV)
 
 		// Category management
 		admin.GET("/categories", h.ListCategories)
@@ -1269,4 +1274,304 @@ func (h *AdminHandler) TerminateSession(c *gin.Context) {
 	}
 	// Implementation for terminating a session
 	c.JSON(http.StatusOK, gin.H{"message": "Session terminated successfully"})
+}
+
+// Bulk DNS Management Handlers
+
+// BulkAssignIP assigns the same IP address to multiple domains
+func (h *AdminHandler) BulkAssignIP(c *gin.Context) {
+	var req struct {
+		Password   string `json:"password" binding:"required"`
+		Operations []struct {
+			DomainID   string `json:"domain_id" binding:"required"`
+			RecordName string `json:"record_name" binding:"required"`
+			IPAddress  string `json:"ip_address" binding:"required,ip"`
+			TTL        int    `json:"ttl" binding:"required,min=60,max=604800"`
+		} `json:"operations" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Verify admin password for security
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Verify password (this would need to be implemented in auth service)
+	if !h.authSvc.VerifyCurrentUserPassword(userID.(string), req.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
+
+	// Log the bulk operation for security audit
+	log.Printf("Bulk IP assignment initiated by user %s for %d domains", userID, len(req.Operations))
+
+	results := make([]map[string]interface{}, 0, len(req.Operations))
+	successCount := 0
+	errorCount := 0
+
+	for _, op := range req.Operations {
+		result := map[string]interface{}{
+			"domain_id": op.DomainID,
+			"success":   false,
+			"error":     nil,
+		}
+
+		// Create DNS record
+		dnsRecord := types.DNSRecord{
+			DomainID: op.DomainID,
+			Type:     "A",
+			Name:     op.RecordName,
+			Value:    op.IPAddress,
+			TTL:      op.TTL,
+		}
+
+		err := h.dnsSvc.CreateOrUpdateRecord(dnsRecord)
+		if err != nil {
+			result["error"] = err.Error()
+			errorCount++
+		} else {
+			result["success"] = true
+			successCount++
+		}
+
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      fmt.Sprintf("Bulk IP assignment completed: %d successful, %d failed", successCount, errorCount),
+		"success_count": successCount,
+		"error_count":   errorCount,
+		"results":       results,
+	})
+}
+
+// BulkUpdateNameservers updates nameservers for multiple domains
+func (h *AdminHandler) BulkUpdateNameservers(c *gin.Context) {
+	var req struct {
+		Password   string `json:"password" binding:"required"`
+		Operations []struct {
+			DomainID    string   `json:"domain_id" binding:"required"`
+			Nameservers []string `json:"nameservers" binding:"required,min=2"`
+		} `json:"operations" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Verify admin password for security
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Verify password
+	if !h.authSvc.VerifyCurrentUserPassword(userID.(string), req.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
+
+	// Log the bulk operation for security audit
+	log.Printf("Bulk nameserver update initiated by user %s for %d domains", userID, len(req.Operations))
+
+	results := make([]map[string]interface{}, 0, len(req.Operations))
+	successCount := 0
+	errorCount := 0
+
+	for _, op := range req.Operations {
+		result := map[string]interface{}{
+			"domain_id": op.DomainID,
+			"success":   false,
+			"error":     nil,
+		}
+
+		// Update nameservers for the domain
+		// First, remove existing NS records
+		existingRecords, err := h.dnsSvc.GetDomainRecords(op.DomainID)
+		if err != nil {
+			result["error"] = fmt.Sprintf("Failed to get existing records: %v", err)
+			errorCount++
+			results = append(results, result)
+			continue
+		}
+
+		// Remove existing NS records
+		for _, record := range existingRecords {
+			if record.Type == "NS" {
+				h.dnsSvc.DeleteRecord(record.ID)
+			}
+		}
+
+		// Add new NS records
+		nsSuccess := true
+		for _, ns := range op.Nameservers {
+			dnsRecord := types.DNSRecord{
+				DomainID: op.DomainID,
+				Type:     "NS",
+				Name:     "@",
+				Value:    ns,
+				TTL:      86400, // 24 hours default for NS records
+			}
+
+			if err := h.dnsSvc.CreateOrUpdateRecord(dnsRecord); err != nil {
+				result["error"] = fmt.Sprintf("Failed to create NS record for %s: %v", ns, err)
+				nsSuccess = false
+				break
+			}
+		}
+
+		if nsSuccess {
+			result["success"] = true
+			successCount++
+		} else {
+			errorCount++
+		}
+
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      fmt.Sprintf("Bulk nameserver update completed: %d successful, %d failed", successCount, errorCount),
+		"success_count": successCount,
+		"error_count":   errorCount,
+		"results":       results,
+	})
+}
+
+// BulkUpdateFromCSV processes bulk DNS updates from CSV data
+func (h *AdminHandler) BulkUpdateFromCSV(c *gin.Context) {
+	var req struct {
+		Password string `json:"password" binding:"required"`
+		CSVData  []struct {
+			Domain      string `json:"domain" binding:"required"`
+			RecordType  string `json:"record_type"`
+			Name        string `json:"name"`
+			Value       string `json:"value"`
+			TTL         string `json:"ttl"`
+			Nameserver1 string `json:"nameserver1"`
+			Nameserver2 string `json:"nameserver2"`
+		} `json:"csv_data" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Verify admin password for security
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Verify password
+	if !h.authSvc.VerifyCurrentUserPassword(userID.(string), req.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
+
+	// Log the bulk operation for security audit
+	log.Printf("Bulk CSV update initiated by user %s for %d rows", userID, len(req.CSVData))
+
+	results := make([]map[string]interface{}, 0, len(req.CSVData))
+	successCount := 0
+	errorCount := 0
+
+	for _, row := range req.CSVData {
+		result := map[string]interface{}{
+			"domain":  row.Domain,
+			"success": false,
+			"error":   nil,
+		}
+
+		// Get domain ID from domain name
+		domains, err := h.domainRepo.GetDomainsByName(row.Domain)
+		if err != nil || len(domains) == 0 {
+			result["error"] = fmt.Sprintf("Domain %s not found", row.Domain)
+			errorCount++
+			results = append(results, result)
+			continue
+		}
+
+		domainID := domains[0].ID
+
+		// Process DNS record if provided
+		if row.RecordType != "" && row.Name != "" && row.Value != "" {
+			ttl := 3600 // default TTL
+			if row.TTL != "" {
+				if parsedTTL, err := strconv.Atoi(row.TTL); err == nil {
+					ttl = parsedTTL
+				}
+			}
+
+			dnsRecord := types.DNSRecord{
+				DomainID: domainID,
+				Type:     row.RecordType,
+				Name:     row.Name,
+				Value:    row.Value,
+				TTL:      ttl,
+			}
+
+			if err := h.dnsSvc.CreateOrUpdateRecord(dnsRecord); err != nil {
+				result["error"] = fmt.Sprintf("Failed to create/update DNS record: %v", err)
+				errorCount++
+				results = append(results, result)
+				continue
+			}
+		}
+
+		// Process nameservers if provided
+		if row.Nameserver1 != "" && row.Nameserver2 != "" {
+			// Remove existing NS records
+			existingRecords, err := h.dnsSvc.GetDomainRecords(domainID)
+			if err == nil {
+				for _, record := range existingRecords {
+					if record.Type == "NS" {
+						h.dnsSvc.DeleteRecord(record.ID)
+					}
+				}
+			}
+
+			// Add new nameservers
+			nameservers := []string{row.Nameserver1, row.Nameserver2}
+			for _, ns := range nameservers {
+				if ns != "" {
+					dnsRecord := types.DNSRecord{
+						DomainID: domainID,
+						Type:     "NS",
+						Name:     "@",
+						Value:    ns,
+						TTL:      86400,
+					}
+
+					if err := h.dnsSvc.CreateOrUpdateRecord(dnsRecord); err != nil {
+						result["error"] = fmt.Sprintf("Failed to create NS record: %v", err)
+						errorCount++
+						results = append(results, result)
+						continue
+					}
+				}
+			}
+		}
+
+		result["success"] = true
+		successCount++
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      fmt.Sprintf("Bulk CSV update completed: %d successful, %d failed", successCount, errorCount),
+		"success_count": successCount,
+		"error_count":   errorCount,
+		"results":       results,
+	})
 }

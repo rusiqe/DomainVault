@@ -1635,3 +1635,504 @@ window.hideImportDNSModal = hideImportDNSModal;
 window.importDNSRecords = importDNSRecords;
 window.exportDNSRecords = exportDNSRecords;
 window.refreshDNSRecords = refreshDNSRecords;
+
+// Bulk DNS Management Functions
+let bulkOperationType = null;
+let bulkOperationData = null;
+let csvData = null;
+
+// Tab switching for bulk DNS management
+function switchBulkTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    
+    // Update tab content
+    document.querySelectorAll('.bulk-tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(tabName).classList.add('active');
+    
+    // Load domains for the tabs that need them
+    if (tabName === 'bulk-ip' || tabName === 'bulk-nameservers') {
+        loadDomainsForBulkOperations();
+    }
+}
+
+// Load domains for bulk operations
+async function loadDomainsForBulkOperations() {
+    try {
+        const domains = await apiCall('/api/v1/admin/domains');
+        if (domains && domains.domains) {
+            populateBulkDomainSelects(domains.domains);
+        }
+    } catch (error) {
+        console.error('Failed to load domains for bulk operations:', error);
+    }
+}
+
+function populateBulkDomainSelects(domains) {
+    const ipDomainSelect = document.getElementById('bulkIpDomains');
+    const nsDomainSelect = document.getElementById('bulkNsDomains');
+    
+    const domainOptions = domains.map(domain => {
+        return `<option value="${domain.id}">${domain.name}</option>`;
+    }).join('');
+    
+    if (ipDomainSelect) {
+        ipDomainSelect.innerHTML = domainOptions;
+    }
+    if (nsDomainSelect) {
+        nsDomainSelect.innerHTML = domainOptions;
+    }
+}
+
+// Domain selection helpers
+function selectAllDomains(selectId) {
+    const select = document.getElementById(selectId);
+    if (select) {
+        for (let option of select.options) {
+            option.selected = true;
+        }
+    }
+}
+
+function clearDomainSelection(selectId) {
+    const select = document.getElementById(selectId);
+    if (select) {
+        for (let option of select.options) {
+            option.selected = false;
+        }
+    }
+}
+
+// Nameserver presets
+function applyNameserverPreset() {
+    const preset = document.getElementById('nsPresets').value;
+    const ns1 = document.getElementById('ns1');
+    const ns2 = document.getElementById('ns2');
+    const ns3 = document.getElementById('ns3');
+    const ns4 = document.getElementById('ns4');
+    
+    switch (preset) {
+        case 'cloudflare':
+            ns1.value = 'ns1.cloudflare.com';
+            ns2.value = 'ns2.cloudflare.com';
+            ns3.value = '';
+            ns4.value = '';
+            break;
+        case 'godaddy':
+            ns1.value = 'ns1.godaddy.com';
+            ns2.value = 'ns2.godaddy.com';
+            ns3.value = '';
+            ns4.value = '';
+            break;
+        case 'namecheap':
+            ns1.value = 'dns1.namecheap.com';
+            ns2.value = 'dns2.namecheap.com';
+            ns3.value = '';
+            ns4.value = '';
+            break;
+        case 'aws':
+            ns1.value = 'ns-1.awsdns-00.com';
+            ns2.value = 'ns-2.awsdns-00.net';
+            ns3.value = 'ns-3.awsdns-00.org';
+            ns4.value = 'ns-4.awsdns-00.co.uk';
+            break;
+        case 'custom':
+            ns1.value = '';
+            ns2.value = '';
+            ns3.value = '';
+            ns4.value = '';
+            break;
+    }
+}
+
+// Preview bulk IP changes
+function previewBulkIpChanges() {
+    const selectedDomains = Array.from(document.getElementById('bulkIpDomains').selectedOptions);
+    const newIp = document.getElementById('bulkNewIp').value;
+    const recordName = document.getElementById('bulkRecordName').value || '@';
+    const ttl = document.getElementById('bulkTtl').value;
+    
+    if (selectedDomains.length === 0) {
+        showNotification('Please select at least one domain', 'error');
+        return;
+    }
+    
+    if (!newIp || !isValidIP(newIp)) {
+        showNotification('Please enter a valid IP address', 'error');
+        return;
+    }
+    
+    const previewContainer = document.getElementById('bulkIpPreview');
+    const changes = selectedDomains.map(option => {
+        return {
+            domainId: option.value,
+            domainName: option.text,
+            recordName: recordName,
+            newValue: newIp,
+            ttl: ttl,
+            type: 'A'
+        };
+    });
+    
+    bulkOperationData = {
+        type: 'ip',
+        changes: changes
+    };
+    
+    const previewHtml = changes.map(change => `
+        <div class="preview-item">
+            <div class="preview-domain">${change.domainName}</div>
+            <div class="preview-change new">Add/Update A record: ${change.recordName} → ${change.newValue} (TTL: ${change.ttl}s)</div>
+        </div>
+    `).join('');
+    
+    previewContainer.innerHTML = previewHtml;
+    document.getElementById('bulkIpApplyBtn').disabled = false;
+}
+
+// Preview bulk nameserver changes
+function previewBulkNsChanges() {
+    const selectedDomains = Array.from(document.getElementById('bulkNsDomains').selectedOptions);
+    const ns1 = document.getElementById('ns1').value;
+    const ns2 = document.getElementById('ns2').value;
+    const ns3 = document.getElementById('ns3').value;
+    const ns4 = document.getElementById('ns4').value;
+    
+    if (selectedDomains.length === 0) {
+        showNotification('Please select at least one domain', 'error');
+        return;
+    }
+    
+    if (!ns1 || !ns2) {
+        showNotification('Please enter at least 2 nameservers', 'error');
+        return;
+    }
+    
+    const nameservers = [ns1, ns2];
+    if (ns3) nameservers.push(ns3);
+    if (ns4) nameservers.push(ns4);
+    
+    const previewContainer = document.getElementById('bulkNsPreview');
+    const changes = selectedDomains.map(option => {
+        return {
+            domainId: option.value,
+            domainName: option.text,
+            nameservers: nameservers
+        };
+    });
+    
+    bulkOperationData = {
+        type: 'nameservers',
+        changes: changes
+    };
+    
+    const previewHtml = changes.map(change => `
+        <div class="preview-item">
+            <div class="preview-domain">${change.domainName}</div>
+            <div class="preview-change update">Update nameservers: ${change.nameservers.join(', ')}</div>
+        </div>
+    `).join('');
+    
+    previewContainer.innerHTML = previewHtml;
+    document.getElementById('bulkNsApplyBtn').disabled = false;
+}
+
+// CSV Upload handling
+function handleCsvUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.csv')) {
+        showNotification('Please select a CSV file', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const csv = e.target.result;
+        parseCsvData(csv);
+    };
+    reader.readAsText(file);
+}
+
+function parseCsvData(csvText) {
+    const lines = csvText.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+        showNotification('CSV file must contain at least a header and one data row', 'error');
+        return;
+    }
+    
+    const headers = lines[0].split(',').map(h => h.trim());
+    const expectedHeaders = ['domain', 'record_type', 'name', 'value', 'ttl', 'nameserver1', 'nameserver2'];
+    
+    if (!expectedHeaders.every(h => headers.includes(h))) {
+        showNotification('CSV headers do not match expected format', 'error');
+        return;
+    }
+    
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row = {};
+        headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+        });
+        data.push(row);
+    }
+    
+    csvData = data;
+    displayCsvPreview(data);
+    document.getElementById('csvPreviewSection').style.display = 'block';
+    document.getElementById('csvActions').style.display = 'flex';
+}
+
+function displayCsvPreview(data) {
+    const tbody = document.querySelector('#csvPreviewTable tbody');
+    const rows = data.slice(0, 10).map(row => { // Show first 10 rows
+        const currentSettings = 'Loading...';
+        const proposedChanges = [];
+        
+        if (row.record_type && row.name && row.value) {
+            proposedChanges.push(`${row.record_type} record: ${row.name} → ${row.value}`);
+        }
+        if (row.nameserver1 && row.nameserver2) {
+            proposedChanges.push(`Nameservers: ${row.nameserver1}, ${row.nameserver2}`);
+        }
+        
+        return `
+            <tr>
+                <td>${row.domain}</td>
+                <td>${currentSettings}</td>
+                <td>${proposedChanges.join('<br>')}</td>
+                <td><span class="status-badge status-warning">Pending</span></td>
+            </tr>
+        `;
+    }).join('');
+    
+    tbody.innerHTML = rows;
+    if (data.length > 10) {
+        tbody.innerHTML += `<tr><td colspan="4">... and ${data.length - 10} more rows</td></tr>`;
+    }
+}
+
+function validateCsvData() {
+    if (!csvData) {
+        showNotification('No CSV data to validate', 'error');
+        return;
+    }
+    
+    const errors = [];
+    csvData.forEach((row, index) => {
+        if (!row.domain) {
+            errors.push(`Row ${index + 2}: Missing domain`);
+        }
+        if (row.record_type && !['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV'].includes(row.record_type)) {
+            errors.push(`Row ${index + 2}: Invalid record type`);
+        }
+        if (row.record_type === 'A' && row.value && !isValidIP(row.value)) {
+            errors.push(`Row ${index + 2}: Invalid IP address`);
+        }
+    });
+    
+    if (errors.length > 0) {
+        showNotification(`Validation errors:\n${errors.join('\n')}`, 'error');
+    } else {
+        showNotification('CSV data validation passed', 'success');
+        bulkOperationData = {
+            type: 'csv',
+            changes: csvData
+        };
+        document.getElementById('csvApplyBtn').disabled = false;
+    }
+}
+
+function downloadCsvTemplate() {
+    const template = `domain,record_type,name,value,ttl,nameserver1,nameserver2
+example.com,A,@,192.168.1.100,3600,ns1.cloudflare.com,ns2.cloudflare.com
+test.com,A,www,192.168.1.101,3600,ns1.godaddy.com,ns2.godaddy.com
+mysite.org,CNAME,blog,myblog.wordpress.com,1800,,`;
+    
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bulk_dns_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+// Bulk confirmation modal
+function showBulkConfirmationModal(operationType) {
+    if (!bulkOperationData) {
+        showNotification('No bulk operation data available', 'error');
+        return;
+    }
+    
+    bulkOperationType = operationType;
+    const modal = document.getElementById('bulkConfirmationModal');
+    const summaryDiv = document.getElementById('bulkConfirmationSummary');
+    
+    let summaryHtml = '';
+    switch (operationType) {
+        case 'ip':
+            summaryHtml = `
+                <h4>Bulk IP Assignment Summary</h4>
+                <p><strong>${bulkOperationData.changes.length}</strong> domains will be updated with IP address <strong>${bulkOperationData.changes[0].newValue}</strong></p>
+                <ul>${bulkOperationData.changes.map(c => `<li>${c.domainName}</li>`).join('')}</ul>
+            `;
+            break;
+        case 'nameservers':
+            summaryHtml = `
+                <h4>Bulk Nameserver Changes Summary</h4>
+                <p><strong>${bulkOperationData.changes.length}</strong> domains will have their nameservers updated</p>
+                <p><strong>New nameservers:</strong> ${bulkOperationData.changes[0].nameservers.join(', ')}</p>
+                <ul>${bulkOperationData.changes.map(c => `<li>${c.domainName}</li>`).join('')}</ul>
+            `;
+            break;
+        case 'csv':
+            summaryHtml = `
+                <h4>CSV Bulk Changes Summary</h4>
+                <p><strong>${bulkOperationData.changes.length}</strong> domains will be processed from CSV data</p>
+                <p>Changes include DNS records and nameserver updates as specified in the uploaded file.</p>
+            `;
+            break;
+    }
+    
+    summaryDiv.innerHTML = summaryHtml;
+    modal.style.display = 'flex';
+    
+    // Setup confirmation checkbox listener
+    const confirmCheckbox = document.getElementById('confirmBulkChanges');
+    const passwordInput = document.getElementById('bulkConfirmPassword');
+    const executeBtn = document.getElementById('executeBulkBtn');
+    
+    const checkEnableButton = () => {
+        executeBtn.disabled = !(confirmCheckbox.checked && passwordInput.value.length > 0);
+    };
+    
+    confirmCheckbox.addEventListener('change', checkEnableButton);
+    passwordInput.addEventListener('input', checkEnableButton);
+}
+
+function hideBulkConfirmationModal() {
+    document.getElementById('bulkConfirmationModal').style.display = 'none';
+    document.getElementById('bulkConfirmPassword').value = '';
+    document.getElementById('confirmBulkChanges').checked = false;
+    document.getElementById('executeBulkBtn').disabled = true;
+}
+
+// Execute bulk changes
+async function executeBulkChanges() {
+    const password = document.getElementById('bulkConfirmPassword').value;
+    
+    if (!password) {
+        showNotification('Password is required', 'error');
+        return;
+    }
+    
+    try {
+        let endpoint, payload;
+        
+        switch (bulkOperationType) {
+            case 'ip':
+                endpoint = '/api/v1/admin/dns/bulk/ip';
+                payload = {
+                    password: password,
+                    operations: bulkOperationData.changes.map(change => ({
+                        domain_id: change.domainId,
+                        record_name: change.recordName,
+                        ip_address: change.newValue,
+                        ttl: parseInt(change.ttl)
+                    }))
+                };
+                break;
+            case 'nameservers':
+                endpoint = '/api/v1/admin/dns/bulk/nameservers';
+                payload = {
+                    password: password,
+                    operations: bulkOperationData.changes.map(change => ({
+                        domain_id: change.domainId,
+                        nameservers: change.nameservers
+                    }))
+                };
+                break;
+            case 'csv':
+                endpoint = '/api/v1/admin/dns/bulk/csv';
+                payload = {
+                    password: password,
+                    csv_data: bulkOperationData.changes
+                };
+                break;
+        }
+        
+        const response = await apiCall(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        if (response) {
+            showNotification(`Bulk ${bulkOperationType} operation completed successfully`, 'success');
+            hideBulkConfirmationModal();
+            
+            // Reset forms and preview
+            bulkOperationData = null;
+            bulkOperationType = null;
+            resetBulkForms();
+        }
+    } catch (error) {
+        console.error('Bulk operation failed:', error);
+        showNotification('Bulk operation failed', 'error');
+    }
+}
+
+function resetBulkForms() {
+    // Reset IP form
+    document.getElementById('bulkNewIp').value = '';
+    document.getElementById('bulkRecordName').value = '@';
+    document.getElementById('bulkTtl').value = '3600';
+    document.getElementById('bulkIpPreview').innerHTML = '<p class="preview-empty">Select domains and enter IP to preview changes</p>';
+    document.getElementById('bulkIpApplyBtn').disabled = true;
+    
+    // Reset nameserver form
+    document.getElementById('ns1').value = '';
+    document.getElementById('ns2').value = '';
+    document.getElementById('ns3').value = '';
+    document.getElementById('ns4').value = '';
+    document.getElementById('nsPresets').value = '';
+    document.getElementById('bulkNsPreview').innerHTML = '<p class="preview-empty">Select domains and enter nameservers to preview changes</p>';
+    document.getElementById('bulkNsApplyBtn').disabled = true;
+    
+    // Reset CSV form
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('csvPreviewSection').style.display = 'none';
+    document.getElementById('csvActions').style.display = 'none';
+    document.getElementById('csvApplyBtn').disabled = true;
+    csvData = null;
+}
+
+// Utility functions
+function isValidIP(ip) {
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+}
+
+// Global function exports for bulk DNS management
+window.switchBulkTab = switchBulkTab;
+window.selectAllDomains = selectAllDomains;
+window.clearDomainSelection = clearDomainSelection;
+window.applyNameserverPreset = applyNameserverPreset;
+window.previewBulkIpChanges = previewBulkIpChanges;
+window.previewBulkNsChanges = previewBulkNsChanges;
+window.handleCsvUpload = handleCsvUpload;
+window.validateCsvData = validateCsvData;
+window.downloadCsvTemplate = downloadCsvTemplate;
+window.showBulkConfirmationModal = showBulkConfirmationModal;
+window.hideBulkConfirmationModal = hideBulkConfirmationModal;
+window.executeBulkChanges = executeBulkChanges;
