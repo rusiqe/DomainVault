@@ -1,6 +1,9 @@
 package types
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -17,7 +20,7 @@ type Domain struct {
 	AutoRenew   bool      `json:"auto_renew" db:"auto_renew"`              // Auto-renewal setting
 	RenewalPrice *float64 `json:"renewal_price,omitempty" db:"renewal_price"` // Annual renewal cost
 	Status      string    `json:"status" db:"status"`                      // active, expired, transferred, etc.
-	Tags        []string  `json:"tags,omitempty" db:"tags"`                // Organization tags
+	Tags        TagsSlice `json:"tags,omitempty" db:"tags"`                // Organization tags
 	
 	// HTTP Status monitoring
 	HTTPStatus      *int       `json:"http_status,omitempty" db:"http_status"`           // Last HTTP status code
@@ -73,17 +76,107 @@ type Project struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// CredentialsMap is a custom type for handling JSON marshaling/unmarshaling of credentials
+type CredentialsMap map[string]string
+
+// Value implements the driver.Valuer interface for database storage
+func (c CredentialsMap) Value() (driver.Value, error) {
+	return json.Marshal(c)
+}
+
+// Scan implements the sql.Scanner interface for database retrieval
+func (c *CredentialsMap) Scan(value interface{}) error {
+	if value == nil {
+		*c = make(CredentialsMap)
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		return json.Unmarshal(v, c)
+	case string:
+		return json.Unmarshal([]byte(v), c)
+	default:
+		return fmt.Errorf("cannot scan %T into CredentialsMap", value)
+	}
+}
+
+// TagsSlice is a custom type for handling JSON marshaling/unmarshaling of tags
+type TagsSlice []string
+
+// Value implements the driver.Valuer interface for database storage
+func (t TagsSlice) Value() (driver.Value, error) {
+	return json.Marshal(t)
+}
+
+// Scan implements the sql.Scanner interface for database retrieval
+func (t *TagsSlice) Scan(value interface{}) error {
+	if value == nil {
+		*t = make(TagsSlice, 0)
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		return json.Unmarshal(v, t)
+	case string:
+		return json.Unmarshal([]byte(v), t)
+	default:
+		return fmt.Errorf("cannot scan %T into TagsSlice", value)
+	}
+}
+
 // ProviderCredentials stores encrypted API credentials for domain providers
 type ProviderCredentials struct {
-	ID              string            `json:"id" db:"id"`
-	Provider        string            `json:"provider" db:"provider"`
-	Name            string            `json:"name" db:"name"` // User-friendly name
-	Credentials     map[string]string `json:"credentials" db:"credentials"` // Encrypted credentials
-	Enabled         bool              `json:"enabled" db:"enabled"`
-	LastSync        *time.Time        `json:"last_sync,omitempty" db:"last_sync"`
-	LastSyncError   *string           `json:"last_sync_error,omitempty" db:"last_sync_error"`
-	CreatedAt       time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at" db:"updated_at"`
+	ID              string         `json:"id" db:"id"`
+	Provider        string         `json:"provider" db:"provider"`           // Provider type (godaddy, namecheap)
+	Name            string         `json:"name" db:"name"`                   // User-friendly name
+	AccountName     string         `json:"account_name" db:"account_name"`   // Account identifier
+	Credentials     CredentialsMap `json:"credentials" db:"credentials"`     // API credentials (key, secret, etc.)
+	Enabled         bool           `json:"enabled" db:"enabled"`
+	ConnectionStatus string        `json:"connection_status" db:"connection_status"` // connected, error, testing
+	LastSync        *time.Time     `json:"last_sync,omitempty" db:"last_sync"`
+	LastSyncError   *string        `json:"last_sync_error,omitempty" db:"last_sync_error"`
+	CreatedAt       time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at" db:"updated_at"`
+}
+
+// ProviderInfo represents information about supported providers
+type ProviderInfo struct {
+	Name         string                    `json:"name"`          // Provider name (godaddy, namecheap)
+	DisplayName  string                    `json:"display_name"`  // Human-readable name
+	Description  string                    `json:"description"`   // Provider description
+	Fields       []ProviderFieldInfo      `json:"fields"`        // Required credential fields
+	DocumentationURL string               `json:"documentation_url,omitempty"` // Setup guide URL
+}
+
+// ProviderFieldInfo describes a credential field
+type ProviderFieldInfo struct {
+	Name         string `json:"name"`         // Field name (api_key, api_secret)
+	DisplayName  string `json:"display_name"` // Human-readable name
+	Type         string `json:"type"`         // text, password, email
+	Required     bool   `json:"required"`     // Whether field is required
+	Description  string `json:"description"`  // Field description
+	Placeholder  string `json:"placeholder,omitempty"` // Example value
+}
+
+// ProviderConnectionRequest represents a provider connection request
+type ProviderConnectionRequest struct {
+	Provider     string            `json:"provider" binding:"required"`
+	Name         string            `json:"name" binding:"required"`         // User-friendly name
+	AccountName  string            `json:"account_name" binding:"required"` // Account identifier
+	Credentials  map[string]string `json:"credentials" binding:"required"`  // API credentials
+	TestConnection bool            `json:"test_connection"`                 // Test before saving
+	AutoSync     bool              `json:"auto_sync"`                       // Run initial sync if test passes
+}
+
+// ProviderConnectionResponse represents the result of a connection attempt
+type ProviderConnectionResponse struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	ProviderID   string `json:"provider_id,omitempty"`   // ID if successful
+	DomainsFound int    `json:"domains_found,omitempty"` // Number of domains found during test
+	SyncStarted  bool   `json:"sync_started,omitempty"`  // Whether initial sync was started
 }
 
 // ImportRequest represents a manual domain import request

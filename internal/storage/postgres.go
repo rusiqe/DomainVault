@@ -501,8 +501,8 @@ func (r *PostgresRepo) CreateCredentials(creds *types.ProviderCredentials) error
 	creds.UpdatedAt = now
 	
 	query := `
-		INSERT INTO provider_credentials (id, provider, name, credentials, enabled, created_at, updated_at)
-		VALUES (:id, :provider, :name, :credentials, :enabled, :created_at, :updated_at)`
+		INSERT INTO provider_credentials (id, provider, name, account_name, credentials, enabled, connection_status, created_at, updated_at)
+		VALUES (:id, :provider, :name, :account_name, :credentials, :enabled, :connection_status, :created_at, :updated_at)`
 	
 	_, err := r.db.NamedExec(query, creds)
 	if err != nil {
@@ -515,7 +515,7 @@ func (r *PostgresRepo) CreateCredentials(creds *types.ProviderCredentials) error
 // GetAllCredentials retrieves all provider credentials
 func (r *PostgresRepo) GetAllCredentials() ([]types.ProviderCredentials, error) {
 	var credentials []types.ProviderCredentials
-	query := `SELECT id, provider, name, credentials, enabled, last_sync, last_sync_error, 
+	query := `SELECT id, provider, name, account_name, credentials, enabled, connection_status, last_sync, last_sync_error, 
 	          created_at, updated_at FROM provider_credentials ORDER BY provider, name`
 	
 	err := r.db.Select(&credentials, query)
@@ -529,7 +529,7 @@ func (r *PostgresRepo) GetAllCredentials() ([]types.ProviderCredentials, error) 
 // GetCredentialsByID retrieves credentials by ID
 func (r *PostgresRepo) GetCredentialsByID(id string) (*types.ProviderCredentials, error) {
 	var creds types.ProviderCredentials
-	query := `SELECT id, provider, name, credentials, enabled, last_sync, last_sync_error, 
+	query := `SELECT id, provider, name, account_name, credentials, enabled, connection_status, last_sync, last_sync_error, 
 	          created_at, updated_at FROM provider_credentials WHERE id = $1`
 	
 	err := r.db.Get(&creds, query, id)
@@ -546,7 +546,7 @@ func (r *PostgresRepo) GetCredentialsByID(id string) (*types.ProviderCredentials
 // GetCredentialsByProvider retrieves all credentials for a provider
 func (r *PostgresRepo) GetCredentialsByProvider(provider string) ([]types.ProviderCredentials, error) {
 	var credentials []types.ProviderCredentials
-	query := `SELECT id, provider, name, credentials, enabled, last_sync, last_sync_error, 
+	query := `SELECT id, provider, name, account_name, credentials, enabled, connection_status, last_sync, last_sync_error, 
 	          created_at, updated_at FROM provider_credentials WHERE provider = $1 ORDER BY name`
 	
 	err := r.db.Select(&credentials, query, provider)
@@ -562,8 +562,8 @@ func (r *PostgresRepo) UpdateCredentials(creds *types.ProviderCredentials) error
 	creds.UpdatedAt = time.Now()
 	query := `
 		UPDATE provider_credentials 
-		SET name = :name, credentials = :credentials, enabled = :enabled, 
-		    last_sync = :last_sync, last_sync_error = :last_sync_error, updated_at = :updated_at
+		SET name = :name, account_name = :account_name, credentials = :credentials, enabled = :enabled, 
+		    connection_status = :connection_status, last_sync = :last_sync, last_sync_error = :last_sync_error, updated_at = :updated_at
 		WHERE id = :id`
 	
 	_, err := r.db.NamedExec(query, creds)

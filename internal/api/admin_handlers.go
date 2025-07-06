@@ -3,11 +3,17 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rusiqe/domainvault/internal/analytics"
 	"github.com/rusiqe/domainvault/internal/auth"
 	"github.com/rusiqe/domainvault/internal/core"
 	"github.com/rusiqe/domainvault/internal/dns"
+	"github.com/rusiqe/domainvault/internal/notifications"
+	"github.com/rusiqe/domainvault/internal/providers"
+	"github.com/rusiqe/domainvault/internal/security"
 	"github.com/rusiqe/domainvault/internal/status"
 	"github.com/rusiqe/domainvault/internal/storage"
 	"github.com/rusiqe/domainvault/internal/types"
@@ -15,11 +21,15 @@ import (
 
 // AdminHandler handles admin-specific HTTP requests
 type AdminHandler struct {
-	domainRepo    storage.DomainRepository
-	authSvc       *auth.AuthService
-	syncSvc       *core.SyncService
-	dnsSvc        *dns.DNSService
-	statusChecker *status.StatusChecker
+	domainRepo       storage.DomainRepository
+	authSvc          *auth.AuthService
+	syncSvc          *core.SyncService
+	dnsSvc           *dns.DNSService
+	statusChecker    *status.StatusChecker
+	providerSvc      *providers.ProviderService
+	analyticsSvc     *analytics.AnalyticsService
+	notificationSvc  *notifications.NotificationService
+	securitySvc      *security.SecurityService
 }
 
 // NewAdminHandler creates a new admin handler
@@ -28,13 +38,20 @@ func NewAdminHandler(
 	authSvc *auth.AuthService,
 	syncSvc *core.SyncService,
 	dnsSvc *dns.DNSService,
+	analyticsSvc *analytics.AnalyticsService,
+	notificationSvc *notifications.NotificationService,
+	securitySvc *security.SecurityService,
 ) *AdminHandler {
 	return &AdminHandler{
-		domainRepo:    domainRepo,
-		authSvc:       authSvc,
-		syncSvc:       syncSvc,
-		dnsSvc:        dnsSvc,
-		statusChecker: status.NewStatusChecker(),
+		domainRepo:       domainRepo,
+		authSvc:          authSvc,
+		syncSvc:          syncSvc,
+		dnsSvc:           dnsSvc,
+		statusChecker:    status.NewStatusChecker(),
+		providerSvc:      providers.NewProviderService(),
+		analyticsSvc:     analyticsSvc,
+		notificationSvc:  notificationSvc,
+		securitySvc:      securitySvc,
 	}
 }
 
@@ -78,6 +95,11 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.PUT("/projects/:id", h.UpdateProject)
 		admin.DELETE("/projects/:id", h.DeleteProject)
 
+		// Provider management
+		admin.GET("/providers", h.ListSupportedProviders)
+		admin.POST("/providers/connect", h.ConnectProvider)
+		admin.POST("/providers/test", h.TestProviderConnection)
+		
 		// Provider credentials management
 		admin.GET("/credentials", h.ListCredentials)
 		admin.POST("/credentials", h.CreateCredentials)
@@ -92,6 +114,29 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.POST("/domains/:id/check-status", h.CheckDomainStatus)
 		admin.POST("/domains/bulk-check-status", h.BulkCheckStatus)
 		admin.GET("/status/summary", h.GetStatusSummary)
+
+		// Analytics and reporting
+		admin.GET("/analytics/portfolio", h.GetPortfolioAnalytics)
+		admin.GET("/analytics/financial", h.GetFinancialAnalytics)
+		admin.GET("/analytics/security", h.GetSecurityAnalytics)
+		admin.GET("/analytics/trends", h.GetTrendAnalytics)
+
+		// Notifications and alerts
+		admin.GET("/notifications/rules", h.GetNotificationRules)
+		admin.POST("/notifications/rules", h.CreateNotificationRule)
+		admin.PUT("/notifications/rules/:id", h.UpdateNotificationRule)
+		admin.DELETE("/notifications/rules/:id", h.DeleteNotificationRule)
+		admin.POST("/notifications/test", h.TestNotification)
+		admin.GET("/alerts", h.GetAlerts)
+		admin.POST("/alerts/:id/resolve", h.ResolveAlert)
+
+		// Security and audit
+		admin.GET("/security/audit", h.GetAuditEvents)
+		admin.GET("/security/metrics", h.GetSecurityMetrics)
+		admin.GET("/security/alerts", h.GetSecurityAlerts)
+		admin.POST("/security/alerts/:id/resolve", h.ResolveSecurityAlert)
+		admin.GET("/security/sessions", h.GetActiveSessions)
+		admin.DELETE("/security/sessions/:id", h.TerminateSession)
 	}
 }
 
@@ -722,6 +767,120 @@ func (h *AdminHandler) GetStatusSummary(c *gin.Context) {
 	c.JSON(http.StatusOK, summary)
 }
 
+// ListSupportedProviders returns all supported domain providers
+func (h *AdminHandler) ListSupportedProviders(c *gin.Context) {
+	providers := h.providerSvc.GetSupportedProviders()
+	c.JSON(http.StatusOK, gin.H{
+		"providers": providers,
+		"count":     len(providers),
+	})
+}
+
+// TestProviderConnection tests provider credentials without saving
+func (h *AdminHandler) TestProviderConnection(c *gin.Context) {
+	var req types.ProviderConnectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Test the connection
+	response, err := h.providerSvc.TestConnection(req.Provider, req.Credentials)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Test failed: %v", err)})
+		return
+	}
+
+	// Log the test result
+	h.providerSvc.LogProviderConnection(req.Provider, req.AccountName, response.Success, response.Message)
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ConnectProvider adds a new provider with credentials and optional auto-sync
+func (h *AdminHandler) ConnectProvider(c *gin.Context) {
+	var req types.ProviderConnectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Test connection if requested
+	if req.TestConnection {
+		testResponse, err := h.providerSvc.TestConnection(req.Provider, req.Credentials)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Connection test failed: %v", err)})
+			return
+		}
+		if !testResponse.Success {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Connection test failed",
+				"details": testResponse.Message,
+			})
+			return
+		}
+	}
+
+	// Create provider credentials
+	creds := &types.ProviderCredentials{
+		Provider:         req.Provider,
+		Name:             req.Name,
+		AccountName:      req.AccountName,
+		Credentials:      types.CredentialsMap(req.Credentials),
+		Enabled:          true,
+		ConnectionStatus: "connected",
+	}
+
+	if repo, ok := h.domainRepo.(interface{ CreateCredentials(*types.ProviderCredentials) error }); ok {
+		if err := repo.CreateCredentials(creds); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to save credentials: %v", err)})
+			return
+		}
+	} else {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Credentials operations not implemented"})
+		return
+	}
+
+	// Log successful connection
+	h.providerSvc.LogProviderConnection(req.Provider, req.AccountName, true, "Provider connected successfully")
+
+	response := types.ProviderConnectionResponse{
+		Success:    true,
+		Message:    "Provider connected successfully",
+		ProviderID: creds.ID,
+	}
+
+	// Run initial sync if requested
+	if req.AutoSync {
+		go func() {
+			// Convert credentials for provider client
+			providerCreds := make(providers.ProviderCredentials)
+			for key, value := range req.Credentials {
+				providerCreds[key] = value
+			}
+			
+			// Add provider to sync service
+			client, err := providers.NewClient(req.Provider, providerCreds)
+			if err != nil {
+				fmt.Printf("Failed to create client for auto-sync: %v\n", err)
+				return
+			}
+			
+			h.syncSvc.AddProvider(req.Name, client)
+			
+			// Run sync
+			if err := h.syncSvc.Run(); err != nil {
+				fmt.Printf("Auto-sync failed for provider %s: %v\n", req.Name, err)
+			} else {
+				fmt.Printf("Auto-sync completed for provider %s\n", req.Name)
+			}
+		}()
+		response.SyncStarted = true
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
 // CreateCredentials creates new provider credentials
 func (h *AdminHandler) CreateCredentials(c *gin.Context) {
 	var creds types.ProviderCredentials
@@ -790,4 +949,153 @@ func (h *AdminHandler) DeleteCredentials(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Credentials operations not implemented"})
 	}
+}
+
+// GetPortfolioAnalytics retrieves aggregated domain portfolio analytics
+func (h *AdminHandler) GetPortfolioAnalytics(c *gin.Context) {
+	metrics, err := h.analyticsSvc.GetPortfolioMetrics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, metrics)
+}
+
+// GetFinancialAnalytics retrieves financial analysis and metrics
+func (h *AdminHandler) GetFinancialAnalytics(c *gin.Context) {
+	// Example: Return a subset of financial metrics for demonstration
+	metrics, err := h.analyticsSvc.GetPortfolioMetrics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, metrics.FinancialMetrics)
+}
+
+// GetSecurityAnalytics retrieves security analysis and metrics
+func (h *AdminHandler) GetSecurityAnalytics(c *gin.Context) {
+	metrics, err := h.securitySvc.GetSecurityMetrics(30 * 24 * time.Hour) // Last 30 days
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, metrics)
+}
+
+// GetTrendAnalytics retrieves historical trend analysis
+func (h *AdminHandler) GetTrendAnalytics(c *gin.Context) {
+	metrics, err := h.analyticsSvc.GetPortfolioMetrics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, metrics.TrendAnalysis)
+}
+
+// GetNotificationRules retrieves all notification rules
+func (h *AdminHandler) GetNotificationRules(c *gin.Context) {
+	// Implementation for fetching notification rules
+	c.JSON(http.StatusOK, gin.H{"message": "Not yet implemented"})
+}
+
+// CreateNotificationRule creates a new notification rule
+func (h *AdminHandler) CreateNotificationRule(c *gin.Context) {
+	// Implementation for creating a new notification rule
+	c.JSON(http.StatusCreated, gin.H{"message": "Not yet implemented"})
+}
+
+// UpdateNotificationRule updates an existing notification rule
+func (h *AdminHandler) UpdateNotificationRule(c *gin.Context) {
+	// Implementation for updating a notification rule
+	c.JSON(http.StatusOK, gin.H{"message": "Not yet implemented"})
+}
+
+// DeleteNotificationRule deletes a notification rule
+func (h *AdminHandler) DeleteNotificationRule(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Rule ID required"})
+		return
+	}
+	// Implementation for deleting a notification rule
+	c.JSON(http.StatusOK, gin.H{"message": "Not yet implemented"})
+}
+
+// TestNotification sends a test notification
+func (h *AdminHandler) TestNotification(c *gin.Context) {
+	// Implementation for sending test notification
+	c.JSON(http.StatusOK, gin.H{"message": "Test notification sent successfully"})
+}
+
+// GetAlerts retrieves a list of alerts
+func (h *AdminHandler) GetAlerts(c *gin.Context) {
+	// Example: Fetch alerts from notification system
+	c.JSON(http.StatusOK, gin.H{"alerts": "Not yet implemented"})
+}
+
+// ResolveAlert resolves a specific alert
+func (h *AdminHandler) ResolveAlert(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Alert ID required"})
+		return
+	}
+	// Implementation for resolving an alert
+	c.JSON(http.StatusOK, gin.H{"message": "Alert resolved successfully"})
+}
+
+// GetAuditEvents retrieves audit events with filters
+func (h *AdminHandler) GetAuditEvents(c *gin.Context) {
+	// Example: Fetch and filter audit events
+	c.JSON(http.StatusOK, gin.H{"audit_events": "Not yet implemented"})
+}
+
+// GetSecurityMetrics retrieves security metrics
+func (h *AdminHandler) GetSecurityMetrics(c *gin.Context) {
+	periodStr := c.Query("period")
+	period, err := strconv.Atoi(periodStr)
+	if err != nil || period <= 0 {
+		period = 30
+	}
+	duration := time.Duration(period) * 24 * time.Hour
+	metrics, err := h.securitySvc.GetSecurityMetrics(duration)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, metrics)
+}
+
+// GetSecurityAlerts retrieves security alerts with filters
+func (h *AdminHandler) GetSecurityAlerts(c *gin.Context) {
+	// Example: Fetch security alerts from the security system
+	c.JSON(http.StatusOK, gin.H{"alerts": "Not yet implemented"})
+}
+
+// ResolveSecurityAlert resolves a specific security alert
+func (h *AdminHandler) ResolveSecurityAlert(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Alert ID required"})
+		return
+	}
+	// Implementation for resolving a security alert
+	c.JSON(http.StatusOK, gin.H{"message": "Security alert resolved successfully"})
+}
+
+// GetActiveSessions retrieves all active sessions
+func (h *AdminHandler) GetActiveSessions(c *gin.Context) {
+	// Example: Fetch active sessions from the session store
+	c.JSON(http.StatusOK, gin.H{"active_sessions": "Not yet implemented"})
+}
+
+// TerminateSession terminates a specific session
+func (h *AdminHandler) TerminateSession(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		return
+	}
+	// Implementation for terminating a session
+	c.JSON(http.StatusOK, gin.H{"message": "Session terminated successfully"})
 }

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DomainVault - Advanced Admin Console</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .metric-card h3 {
+            margin: 0 0 16px 0;
+            color: #2c3e50;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .metric-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 8px 0;
+        }
+        .metric-label {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .metric-change {
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        .metric-change.positive {
+            color: #27ae60;
+        }
+        .metric-change.negative {
+            color: #e74c3c;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        .advanced-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 0;
+            margin-bottom: 30px;
+        }
+        .nav-items {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .nav-item {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        .alert-banner {
+            background: #f39c12;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-banner.critical {
+            background: #e74c3c;
+        }
+        .alert-banner.success {
+            background: #27ae60;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .data-table th {
+            background: #f8f9fa;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .data-table td {
+            padding: 16px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-online { background: #d4edda; color: #155724; }
+        .status-offline { background: #f8d7da; color: #721c24; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden { display: none; }
+        .action-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            margin: 0 4px;
+        }
+        .action-button.primary {
+            background: #3498db;
+            color: white;
+        }
+        .action-button.primary:hover {
+            background: #2980b9;
+        }
+        .action-button.danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .action-button.danger:hover {
+            background: #c0392b;
+        }
+        .filter-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-group label {
+            font-weight: 500;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .filter-group select, .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            min-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="admin-container">
+        <div class="admin-header">
+            <h1><i class="fas fa-shield-alt"></i> DomainVault Advanced Admin</h1>
+            <p>Enterprise Domain Portfolio Management System</p>
+        </div>
+
+        <form id="loginForm" class="admin-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <button type="submit" id="loginBtn" class="admin-button">
+                <span id="loginText">Login</span>
+                <span id="loginSpinner" class="button-spinner" style="display: none;"></span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Advanced Dashboard -->
+    <div id="adminDashboard" class="admin-container" style="display: none;">
+        <!-- Header -->
+        <div class="admin-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1><i class="fas fa-tachometer-alt"></i> DomainVault Advanced Console</h1>
+                    <p>Comprehensive Domain Portfolio Analytics & Management</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span>Welcome, <strong id="userEmail">admin@domainvault.local</strong></span>
+                    <button id="logoutBtn" class="admin-button danger">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Navigation -->
+        <nav class="advanced-nav">
+            <div class="nav-items">
+                <a href="#" class="nav-item active" data-tab="overview">
+                    <i class="fas fa-chart-line"></i> Overview
+                </a>
+                <a href="#" class="nav-item" data-tab="analytics">
+                    <i class="fas fa-analytics"></i> Analytics
+                </a>
+                <a href="#" class="nav-item" data-tab="security">
+                    <i class="fas fa-shield-alt"></i> Security
+                </a>
+                <a href="#" class="nav-item" data-tab="notifications">
+                    <i class="fas fa-bell"></i> Notifications
+                </a>
+                <a href="#" class="nav-item" data-tab="domains">
+                    <i class="fas fa-globe"></i> Domains
+                </a>
+                <a href="#" class="nav-item" data-tab="providers">
+                    <i class="fas fa-server"></i> Providers
+                </a>
+            </div>
+        </nav>
+
+        <!-- Alert Banners -->
+        <div id="alertContainer"></div>
+
+        <!-- Tab Content -->
+        <div class="tab-content-container">
+            <!-- Overview Tab -->
+            <div id="overviewTab" class="tab-content active">
+                <h2><i class="fas fa-chart-pie"></i> Portfolio Overview</h2>
+                
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-globe"></i> Total Domains</h3>
+                        <div class="metric-value" id="totalDomains">--</div>
+                        <div class="metric-label">Active domains in portfolio</div>
+                        <div class="metric-change positive" id="domainChange">+2 this month</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Expiring Soon</h3>
+                        <div class="metric-value" id="expiringSoon">--</div>
+                        <div class="metric-label">Domains expiring in 30 days</div>
+                        <div class="metric-change negative" id="expiringChange">5 critical</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-dollar-sign"></i> Renewal Cost</h3>
+                        <div class="metric-value" id="renewalCost">--</div>
+                        <div class="metric-label">Next 90 days</div>
+                        <div class="metric-change positive" id="costChange">$1,234 saved</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-chart-line"></i> Portfolio Value</h3>
+                        <div class="metric-value" id="portfolioValue">--</div>
+                        <div class="metric-label">Estimated total value</div>
+                        <div class="metric-change positive" id="valueChange">+15% this year</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-heartbeat"></i> Uptime</h3>
+                        <div class="metric-value" id="uptimePercent">--</div>
+                        <div class="metric-label">Average uptime</div>
+                        <div class="metric-change positive" id="uptimeChange">99.8% this month</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-shield-alt"></i> Security Score</h3>
+                        <div class="metric-value" id="securityScore">--</div>
+                        <div class="metric-label">Overall security rating</div>
+                        <div class="metric-change positive" id="securityChange">Excellent</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-chart-bar"></i> Domain Growth</h3>
+                        <div class="chart-container">
+                            <canvas id="growthChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-pie-chart"></i> Provider Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="providerChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div id="analyticsTab" class="tab-content">
+                <h2><i class="fas fa-analytics"></i> Advanced Analytics</h2>
+                
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Time Period</label>
+                            <select id="analyticsperiod">
+                                <option value="7">Last 7 days</option>
+                                <option value="30" selected>Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="365">Last year</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Provider</label>
+                            <select id="analyticsProvider">
+                                <option value="">All Providers</option>
+                                <option value="godaddy">GoDaddy</option>
+                                <option value="namecheap">Namecheap</option>
+                                <option value="cloudflare">Cloudflare</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Category</label>
+                            <select id="analyticsCategory">
+                                <option value="">All Categories</option>
+                                <option value="business">Business</option>
+                                <option value="personal">Personal</option>
+                                <option value="investment">Investment</option>
+                            </select>
+                        </div>
+                        <button class="action-button primary" onclick="refreshAnalytics()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-chart-line"></i> Financial Trends</h3>
+                        <div class="chart-container">
+                            <canvas id="financialChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-calendar-check"></i> Expiration Calendar</h3>
+                        <div class="chart-container">
+                            <canvas id="expirationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3><i class="fas fa-gem"></i> Premium Domains</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Estimated Value</th>
+                                <th>Renewal Cost</th>
+                                <th>Value Multiplier</th>
+                                <th>Factors</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="premiumDomainsTable">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading premium domains...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Security Tab -->
+            <div id="securityTab" class="tab-content">
+                <h2><i class="fas fa-shield-alt"></i> Security Center</h2>
+                
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-user-shield"></i> Login Attempts</h3>
+                        <div class="metric-value" id="loginAttempts">--</div>
+                        <div class="metric-label">Last 24 hours</div>
+                        <div class="metric-change" id="loginAttemptsChange">95% success rate</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-exclamation-circle"></i> Security Alerts</h3>
+                        <div class="metric-value" id="securityAlerts">--</div>
+                        <div class="metric-label">Active alerts</div>
+                        <div class="metric-change" id="securityAlertsChange">2 resolved today</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-users"></i> Active Sessions</h3>
+                        <div class="metric-value" id="activeSessions">--</div>
+                        <div class="metric-label">Current sessions</div>
+                        <div class="metric-change" id="sessionsChange">Average: 12 min</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-bug"></i> Vulnerabilities</h3>
+                        <div class="metric-value" id="vulnerabilities">--</div>
+                        <div class="metric-label">Security issues</div>
+                        <div class="metric-change positive" id="vulnerabilitiesChange">All resolved</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3><i class="fas fa-history"></i> Recent Audit Events</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Resource</th>
+                                <th>IP Address</th>
+                                <th>Risk Score</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditEventsTable">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading audit events...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Notifications Tab -->
+            <div id="notificationsTab" class="tab-content">
+                <h2><i class="fas fa-bell"></i> Notification Center</h2>
+                
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <button class="action-button primary" onclick="createNotificationRule()">
+                            <i class="fas fa-plus"></i> New Rule
+                        </button>
+                        <button class="action-button" onclick="testNotifications()">
+                            <i class="fas fa-paper-plane"></i> Test Notifications
+                        </button>
+                        <button class="action-button" onclick="refreshNotifications()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-envelope"></i> Email Alerts</h3>
+                        <div class="metric-value" id="emailAlerts">--</div>
+                        <div class="metric-label">Sent this month</div>
+                        <div class="metric-change positive">98% delivered</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-slack"></i> Slack Notifications</h3>
+                        <div class="metric-value" id="slackNotifications">--</div>
+                        <div class="metric-label">Channel messages</div>
+                        <div class="metric-change positive">100% delivered</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-webhook"></i> Webhooks</h3>
+                        <div class="metric-value" id="webhooks">--</div>
+                        <div class="metric-label">API calls made</div>
+                        <div class="metric-change positive">99.9% success</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-cogs"></i> Active Rules</h3>
+                        <div class="metric-value" id="activeRules">--</div>
+                        <div class="metric-label">Notification rules</div>
+                        <div class="metric-change positive">All enabled</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3><i class="fas fa-list"></i> Notification Rules</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Alert Types</th>
+                                <th>Channels</th>
+                                <th>Recipients</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="notificationRulesTable">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading notification rules...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Domains Tab -->
+            <div id="domainsTab" class="tab-content">
+                <h2><i class="fas fa-globe"></i> Domain Management</h2>
+                
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Search</label>
+                            <input type="text" id="domainSearch" placeholder="Search domains...">
+                        </div>
+                        <div class="filter-group">
+                            <label>Provider</label>
+                            <select id="domainProvider">
+                                <option value="">All Providers</option>
+                                <option value="godaddy">GoDaddy</option>
+                                <option value="namecheap">Namecheap</option>
+                                <option value="cloudflare">Cloudflare</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Status</label>
+                            <select id="domainStatus">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="expired">Expired</option>
+                                <option value="expiring">Expiring Soon</option>
+                            </select>
+                        </div>
+                        <button class="action-button primary" onclick="searchDomains()">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                        <button class="action-button" onclick="bulkActions()">
+                            <i class="fas fa-tasks"></i> Bulk Actions
+                        </button>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3><i class="fas fa-table"></i> Domain Portfolio</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll"></th>
+                                <th>Domain</th>
+                                <th>Provider</th>
+                                <th>Expires</th>
+                                <th>Status</th>
+                                <th>Renewal Cost</th>
+                                <th>Value</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domainsTable">
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading domains...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Providers Tab -->
+            <div id="providersTab" class="tab-content">
+                <h2><i class="fas fa-server"></i> Provider Management</h2>
+                
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <button class="action-button primary" onclick="connectProvider()">
+                            <i class="fas fa-plus"></i> Connect Provider
+                        </button>
+                        <button class="action-button" onclick="syncAllProviders()">
+                            <i class="fas fa-sync-alt"></i> Sync All
+                        </button>
+                        <button class="action-button" onclick="refreshProviders()">
+                            <i class="fas fa-refresh"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <h3><i class="fas fa-link"></i> Connected Providers</h3>
+                        <div class="metric-value" id="connectedProviders">--</div>
+                        <div class="metric-label">Active connections</div>
+                        <div class="metric-change positive">All healthy</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-sync-alt"></i> Last Sync</h3>
+                        <div class="metric-value" id="lastSync">--</div>
+                        <div class="metric-label">Minutes ago</div>
+                        <div class="metric-change positive">Successful</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-download"></i> Domains Synced</h3>
+                        <div class="metric-value" id="domainsSynced">--</div>
+                        <div class="metric-label">Total synchronized</div>
+                        <div class="metric-change positive">100% accuracy</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Sync Issues</h3>
+                        <div class="metric-value" id="syncIssues">--</div>
+                        <div class="metric-label">Failed syncs</div>
+                        <div class="metric-change positive">None today</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3><i class="fas fa-list"></i> Provider Credentials</h3>
+                    <table class="data-table" id="credentialsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Provider</th>
+                                <th>Status</th>
+                                <th>Last Sync</th>
+                                <th>Domains</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading provider credentials...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/admin-enhanced.js"></script>
+</body>
+</html>
