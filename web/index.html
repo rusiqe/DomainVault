@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DomainVault - Domain Portfolio Management</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <i class="fas fa-shield-alt brand-icon"></i>
+                    <span class="brand-text">DomainVault</span>
+                </div>
+                <div class="nav-links">
+                    <a href="#dashboard" class="nav-link active" data-section="dashboard">
+                        <i class="fas fa-chart-pie"></i> Dashboard
+                    </a>
+                    <a href="#domains" class="nav-link" data-section="domains">
+                        <i class="fas fa-globe"></i> Domains
+                    </a>
+                    <a href="#expiring" class="nav-link" data-section="expiring">
+                        <i class="fas fa-exclamation-triangle"></i> Expiring
+                    </a>
+                    <a href="#sync" class="nav-link" data-section="sync">
+                        <i class="fas fa-sync-alt"></i> Sync
+                    </a>
+                </div>
+                <div class="nav-actions">
+                    <button class="btn btn-primary" id="syncBtn">
+                        <i class="fas fa-sync-alt"></i> Sync Now
+                    </button>
+                    <div class="status-indicator" id="statusIndicator">
+                        <div class="status-dot status-online"></div>
+                        <span class="status-text">Online</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="content-section active">
+                <div class="section-header">
+                    <h1>
+                        <i class="fas fa-chart-pie"></i>
+                        Dashboard
+                    </h1>
+                    <p class="section-subtitle">Domain portfolio overview and analytics</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="totalDomains">-</div>
+                            <div class="stat-label">Total Domains</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="expiringDomains">-</div>
+                            <div class="stat-label">Expiring (30 days)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon success">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="activeProviders">-</div>
+                            <div class="stat-label">Active Providers</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon info">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="lastSync">-</div>
+                            <div class="stat-label">Last Sync</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Provider Distribution -->
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-doughnut"></i> Provider Distribution</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="provider-list" id="providerList">
+                                <!-- Provider items will be populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-calendar-alt"></i> Expiration Timeline</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="expiration-timeline" id="expirationTimeline">
+                                <!-- Timeline items will be populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Domains Section -->
+            <section id="domains-section" class="content-section">
+                <div class="section-header">
+                    <h1>
+                        <i class="fas fa-globe"></i>
+                        Domains
+                    </h1>
+                    <p class="section-subtitle">Manage your domain portfolio</p>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <input type="text" id="searchInput" placeholder="Search domains..." class="search-input">
+                        <select id="providerFilter" class="filter-select">
+                            <option value="">All Providers</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <span class="results-count" id="resultsCount">0 domains</span>
+                    </div>
+                </div>
+
+                <!-- Domains Table -->
+                <div class="table-container">
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Provider</th>
+                                <th>Expires</th>
+                                <th>Status</th>
+                                <th>Days Left</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domainsTableBody">
+                            <!-- Domain rows will be populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Expiring Section -->
+            <section id="expiring-section" class="content-section">
+                <div class="section-header">
+                    <h1>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Expiring Domains
+                    </h1>
+                    <p class="section-subtitle">Domains requiring immediate attention</p>
+                </div>
+
+                <div class="expiring-filters">
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" data-days="30">30 Days</button>
+                        <button class="filter-tab" data-days="60">60 Days</button>
+                        <button class="filter-tab" data-days="90">90 Days</button>
+                    </div>
+                </div>
+
+                <div class="expiring-domains" id="expiringDomainsList">
+                    <!-- Expiring domains will be populated by JS -->
+                </div>
+            </section>
+
+            <!-- Sync Section -->
+            <section id="sync-section" class="content-section">
+                <div class="section-header">
+                    <h1>
+                        <i class="fas fa-sync-alt"></i>
+                        Sync Management
+                    </h1>
+                    <p class="section-subtitle">Manage provider synchronization</p>
+                </div>
+
+                <div class="sync-controls">
+                    <div class="sync-card">
+                        <div class="sync-header">
+                            <h3>Manual Sync</h3>
+                            <button class="btn btn-primary" id="manualSyncBtn">
+                                <i class="fas fa-sync-alt"></i> Start Sync
+                            </button>
+                        </div>
+                        <div class="sync-status" id="syncStatus">
+                            <div class="sync-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="syncProgress"></div>
+                                </div>
+                                <span class="progress-text" id="syncProgressText">Ready to sync</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="providers-status" id="providersStatus">
+                        <!-- Provider status cards will be populated by JS -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <i class="fas fa-sync-alt fa-spin"></i>
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer">
+            <!-- Toast notifications will be populated by JS -->
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
