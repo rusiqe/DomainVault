@@ -1283,7 +1283,7 @@ func (h *AdminHandler) BulkAssignIP(c *gin.Context) {
 	var req struct {
 		Password   string `json:"password" binding:"required"`
 		Operations []struct {
-			DomainID   string `json:"domain_id" binding:"required"`
+			DomainName string `json:"domain_name" binding:"required"`
 			RecordName string `json:"record_name" binding:"required"`
 			IPAddress  string `json:"ip_address" binding:"required,ip"`
 			TTL        int    `json:"ttl" binding:"required,min=60,max=604800"`
@@ -1317,21 +1317,32 @@ func (h *AdminHandler) BulkAssignIP(c *gin.Context) {
 
 	for _, op := range req.Operations {
 		result := map[string]interface{}{
-			"domain_id": op.DomainID,
-			"success":   false,
-			"error":     nil,
+			"domain_name": op.DomainName,
+			"success":     false,
+			"error":       nil,
 		}
+
+		// Get domain ID from domain name
+		domains, err := h.domainRepo.GetDomainsByName(op.DomainName)
+		if err != nil || len(domains) == 0 {
+			result["error"] = fmt.Sprintf("Domain %s not found", op.DomainName)
+			errorCount++
+			results = append(results, result)
+			continue
+		}
+
+		domainID := domains[0].ID
 
 		// Create DNS record
 		dnsRecord := types.DNSRecord{
-			DomainID: op.DomainID,
+			DomainID: domainID,
 			Type:     "A",
 			Name:     op.RecordName,
 			Value:    op.IPAddress,
 			TTL:      op.TTL,
 		}
 
-		err := h.dnsSvc.CreateOrUpdateRecord(dnsRecord)
+		err = h.dnsSvc.CreateOrUpdateRecord(dnsRecord)
 		if err != nil {
 			result["error"] = err.Error()
 			errorCount++
@@ -1356,7 +1367,7 @@ func (h *AdminHandler) BulkUpdateNameservers(c *gin.Context) {
 	var req struct {
 		Password   string `json:"password" binding:"required"`
 		Operations []struct {
-			DomainID    string   `json:"domain_id" binding:"required"`
+			DomainName  string   `json:"domain_name" binding:"required"`
 			Nameservers []string `json:"nameservers" binding:"required,min=2"`
 		} `json:"operations" binding:"required,min=1"`
 	}
@@ -1388,14 +1399,25 @@ func (h *AdminHandler) BulkUpdateNameservers(c *gin.Context) {
 
 	for _, op := range req.Operations {
 		result := map[string]interface{}{
-			"domain_id": op.DomainID,
-			"success":   false,
-			"error":     nil,
+			"domain_name": op.DomainName,
+			"success":     false,
+			"error":       nil,
 		}
+
+		// Get domain ID from domain name
+		domains, err := h.domainRepo.GetDomainsByName(op.DomainName)
+		if err != nil || len(domains) == 0 {
+			result["error"] = fmt.Sprintf("Domain %s not found", op.DomainName)
+			errorCount++
+			results = append(results, result)
+			continue
+		}
+
+		domainID := domains[0].ID
 
 		// Update nameservers for the domain
 		// First, remove existing NS records
-		existingRecords, err := h.dnsSvc.GetDomainRecords(op.DomainID)
+		existingRecords, err := h.dnsSvc.GetDomainRecords(domainID)
 		if err != nil {
 			result["error"] = fmt.Sprintf("Failed to get existing records: %v", err)
 			errorCount++
@@ -1414,7 +1436,7 @@ func (h *AdminHandler) BulkUpdateNameservers(c *gin.Context) {
 		nsSuccess := true
 		for _, ns := range op.Nameservers {
 			dnsRecord := types.DNSRecord{
-				DomainID: op.DomainID,
+				DomainID: domainID,
 				Type:     "NS",
 				Name:     "@",
 				Value:    ns,

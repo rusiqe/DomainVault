@@ -973,7 +973,7 @@ let currentEditingRecord = null;
 // Load DNS management section
 async function loadDNSManagement() {
     try {
-        // Load domains for selection
+        // Load domains for selection and bulk operations
         await loadDomainsForDNS();
         
         // Load DNS templates
@@ -990,6 +990,8 @@ async function loadDomainsForDNS() {
         const data = await apiCall('/api/v1/domains');
         if (data && data.domains) {
             populateDomainsSelect(data.domains);
+            // Store domains for bulk operations
+            window.availableDomains = data.domains;
         }
     } catch (error) {
         console.error('Error loading domains for DNS:', error);
@@ -1654,11 +1656,6 @@ function switchBulkTab(tabName) {
         content.classList.remove('active');
     });
     document.getElementById(tabName).classList.add('active');
-    
-    // Load domains for the tabs that need them
-    if (tabName === 'bulk-ip' || tabName === 'bulk-nameservers') {
-        loadDomainsForBulkOperations();
-    }
 }
 
 // Load domains for bulk operations
@@ -1666,45 +1663,39 @@ async function loadDomainsForBulkOperations() {
     try {
         const domains = await apiCall('/api/v1/admin/domains');
         if (domains && domains.domains) {
-            populateBulkDomainSelects(domains.domains);
+            // Store domains for reference
+            window.availableDomains = domains.domains;
         }
     } catch (error) {
         console.error('Failed to load domains for bulk operations:', error);
     }
 }
 
-function populateBulkDomainSelects(domains) {
-    const ipDomainSelect = document.getElementById('bulkIpDomains');
-    const nsDomainSelect = document.getElementById('bulkNsDomains');
-    
-    const domainOptions = domains.map(domain => {
-        return `<option value="${domain.id}">${domain.name}</option>`;
-    }).join('');
-    
-    if (ipDomainSelect) {
-        ipDomainSelect.innerHTML = domainOptions;
-    }
-    if (nsDomainSelect) {
-        nsDomainSelect.innerHTML = domainOptions;
-    }
-}
-
 // Domain selection helpers
-function selectAllDomains(selectId) {
-    const select = document.getElementById(selectId);
-    if (select) {
-        for (let option of select.options) {
-            option.selected = true;
-        }
+function selectAllDomains(textareaId) {
+    const textarea = document.getElementById(textareaId);
+    if (textarea && window.availableDomains) {
+        // Load all available domains from the API
+        const allDomainNames = window.availableDomains.map(domain => domain.name).join('\n');
+        textarea.value = allDomainNames;
+        showNotification(`Loaded ${window.availableDomains.length} domains`, 'success');
+    } else {
+        // If domains not loaded, try to load them
+        loadDomainsForBulkOperations().then(() => {
+            if (window.availableDomains) {
+                const allDomainNames = window.availableDomains.map(domain => domain.name).join('\n');
+                textarea.value = allDomainNames;
+                showNotification(`Loaded ${window.availableDomains.length} domains`, 'success');
+            }
+        });
     }
 }
 
-function clearDomainSelection(selectId) {
-    const select = document.getElementById(selectId);
-    if (select) {
-        for (let option of select.options) {
-            option.selected = false;
-        }
+function clearDomainSelection(textareaId) {
+    const textarea = document.getElementById(textareaId);
+    if (textarea) {
+        textarea.value = '';
+        showNotification('Domain list cleared', 'info');
     }
 }
 
@@ -1752,13 +1743,14 @@ function applyNameserverPreset() {
 
 // Preview bulk IP changes
 function previewBulkIpChanges() {
-    const selectedDomains = Array.from(document.getElementById('bulkIpDomains').selectedOptions);
+    const domainsTextarea = document.getElementById('bulkIpDomains');
+    const domainNames = parseDomainList(domainsTextarea.value);
     const newIp = document.getElementById('bulkNewIp').value;
     const recordName = document.getElementById('bulkRecordName').value || '@';
     const ttl = document.getElementById('bulkTtl').value;
     
-    if (selectedDomains.length === 0) {
-        showNotification('Please select at least one domain', 'error');
+    if (domainNames.length === 0) {
+        showNotification('Please enter at least one domain name', 'error');
         return;
     }
     
@@ -1768,10 +1760,9 @@ function previewBulkIpChanges() {
     }
     
     const previewContainer = document.getElementById('bulkIpPreview');
-    const changes = selectedDomains.map(option => {
+    const changes = domainNames.map(domainName => {
         return {
-            domainId: option.value,
-            domainName: option.text,
+            domainName: domainName.trim(),
             recordName: recordName,
             newValue: newIp,
             ttl: ttl,
@@ -1797,14 +1788,15 @@ function previewBulkIpChanges() {
 
 // Preview bulk nameserver changes
 function previewBulkNsChanges() {
-    const selectedDomains = Array.from(document.getElementById('bulkNsDomains').selectedOptions);
+    const domainsTextarea = document.getElementById('bulkNsDomains');
+    const domainNames = parseDomainList(domainsTextarea.value);
     const ns1 = document.getElementById('ns1').value;
     const ns2 = document.getElementById('ns2').value;
     const ns3 = document.getElementById('ns3').value;
     const ns4 = document.getElementById('ns4').value;
     
-    if (selectedDomains.length === 0) {
-        showNotification('Please select at least one domain', 'error');
+    if (domainNames.length === 0) {
+        showNotification('Please enter at least one domain name', 'error');
         return;
     }
     
@@ -1818,10 +1810,9 @@ function previewBulkNsChanges() {
     if (ns4) nameservers.push(ns4);
     
     const previewContainer = document.getElementById('bulkNsPreview');
-    const changes = selectedDomains.map(option => {
+    const changes = domainNames.map(domainName => {
         return {
-            domainId: option.value,
-            domainName: option.text,
+            domainName: domainName.trim(),
             nameservers: nameservers
         };
     });
@@ -2046,7 +2037,7 @@ async function executeBulkChanges() {
                 payload = {
                     password: password,
                     operations: bulkOperationData.changes.map(change => ({
-                        domain_id: change.domainId,
+                        domain_name: change.domainName,
                         record_name: change.recordName,
                         ip_address: change.newValue,
                         ttl: parseInt(change.ttl)
@@ -2058,7 +2049,7 @@ async function executeBulkChanges() {
                 payload = {
                     password: password,
                     operations: bulkOperationData.changes.map(change => ({
-                        domain_id: change.domainId,
+                        domain_name: change.domainName,
                         nameservers: change.nameservers
                     }))
                 };
@@ -2094,19 +2085,21 @@ async function executeBulkChanges() {
 
 function resetBulkForms() {
     // Reset IP form
+    document.getElementById('bulkIpDomains').value = '';
     document.getElementById('bulkNewIp').value = '';
     document.getElementById('bulkRecordName').value = '@';
     document.getElementById('bulkTtl').value = '3600';
-    document.getElementById('bulkIpPreview').innerHTML = '<p class="preview-empty">Select domains and enter IP to preview changes</p>';
+    document.getElementById('bulkIpPreview').innerHTML = '<p class="preview-empty">Enter domains and IP to preview changes</p>';
     document.getElementById('bulkIpApplyBtn').disabled = true;
     
     // Reset nameserver form
+    document.getElementById('bulkNsDomains').value = '';
     document.getElementById('ns1').value = '';
     document.getElementById('ns2').value = '';
     document.getElementById('ns3').value = '';
     document.getElementById('ns4').value = '';
     document.getElementById('nsPresets').value = '';
-    document.getElementById('bulkNsPreview').innerHTML = '<p class="preview-empty">Select domains and enter nameservers to preview changes</p>';
+    document.getElementById('bulkNsPreview').innerHTML = '<p class="preview-empty">Enter domains and nameservers to preview changes</p>';
     document.getElementById('bulkNsApplyBtn').disabled = true;
     
     // Reset CSV form
@@ -2121,6 +2114,28 @@ function resetBulkForms() {
 function isValidIP(ip) {
     const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
     return ipRegex.test(ip);
+}
+
+function parseDomainList(input) {
+    if (!input || typeof input !== 'string') {
+        return [];
+    }
+    
+    // Split by line breaks, commas, or semicolons and filter out empty entries
+    return input
+        .split(/[\n,;]+/)
+        .map(domain => domain.trim())
+        .filter(domain => domain.length > 0)
+        .filter(domain => {
+            // Basic domain validation
+            const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/;
+            return domainRegex.test(domain);
+        });
+}
+
+function isDomainValid(domain) {
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/;
+    return domainRegex.test(domain);
 }
 
 // Global function exports for bulk DNS management
