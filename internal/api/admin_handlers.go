@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -96,9 +97,18 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.DELETE("/projects/:id", h.DeleteProject)
 
 		// Provider management
-		admin.GET("/providers", h.ListSupportedProviders)
+		admin.GET("/providers/supported", h.ListSupportedProviders)
+		admin.GET("/providers/connected", h.ListConnectedProviders)
+		admin.GET("/providers/connected/:id", h.GetConnectedProvider)
+		admin.PUT("/providers/connected/:id", h.UpdateConnectedProvider)
+		admin.DELETE("/providers/connected/:id", h.RemoveConnectedProvider)
 		admin.POST("/providers/connect", h.ConnectProvider)
 		admin.POST("/providers/test", h.TestProviderConnection)
+		admin.POST("/providers/:id/sync", h.SyncProviderByID)
+		admin.POST("/providers/sync-all", h.SyncAllConnectedProviders)
+		admin.GET("/providers/auto-sync/status", h.GetAutoSyncStatus)
+		admin.POST("/providers/auto-sync/start", h.StartAutoSync)
+		admin.POST("/providers/auto-sync/stop", h.StopAutoSync)
 		
 		// Provider credentials management
 		admin.GET("/credentials", h.ListCredentials)
@@ -648,6 +658,190 @@ func (h *AdminHandler) ListCredentials(c *gin.Context) {
 	}
 }
 
+// ============================================================================
+// ENHANCED PROVIDER MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// ListConnectedProviders returns all connected providers with status
+func (h *AdminHandler) ListConnectedProviders(c *gin.Context) {
+	providers := h.providerSvc.GetConnectedProviders()
+	
+	// Convert to response format without exposing credentials
+	response := make([]map[string]interface{}, 0, len(providers))
+	for _, provider := range providers {
+		providerData := map[string]interface{}{
+			"id":                provider.ID,
+			"provider":          provider.Provider,
+			"name":              provider.Name,
+			"account_name":      provider.AccountName,
+			"enabled":           provider.Enabled,
+			"auto_sync_enabled": provider.AutoSyncEnabled,
+			"sync_interval":     provider.SyncInterval.Hours(),
+			"connection_status": provider.ConnectionStatus,
+			"last_sync_time":    provider.LastSyncTime,
+			"last_sync_status":  provider.LastSyncStatus,
+			"domains_count":     provider.DomainsCount,
+			"error_count":       provider.ErrorCount,
+			"created_at":        provider.CreatedAt,
+			"updated_at":        provider.UpdatedAt,
+		}
+		response = append(response, providerData)
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"providers": response,
+		"count":     len(response),
+	})
+}
+
+// GetConnectedProvider returns a specific connected provider
+func (h *AdminHandler) GetConnectedProvider(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider ID required"})
+		return
+	}
+	
+	provider, err := h.providerSvc.GetConnectedProvider(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	
+	// Return without exposing credentials
+	response := map[string]interface{}{
+		"id":                provider.ID,
+		"provider":          provider.Provider,
+		"name":              provider.Name,
+		"account_name":      provider.AccountName,
+		"enabled":           provider.Enabled,
+		"auto_sync_enabled": provider.AutoSyncEnabled,
+		"sync_interval":     provider.SyncInterval.Hours(),
+		"connection_status": provider.ConnectionStatus,
+		"last_sync_time":    provider.LastSyncTime,
+		"last_sync_status":  provider.LastSyncStatus,
+		"domains_count":     provider.DomainsCount,
+		"error_count":       provider.ErrorCount,
+		"created_at":        provider.CreatedAt,
+		"updated_at":        provider.UpdatedAt,
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// UpdateConnectedProvider updates a connected provider's settings
+func (h *AdminHandler) UpdateConnectedProvider(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider ID required"})
+		return
+	}
+	
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid update data"})
+		return
+	}
+	
+	if err := h.providerSvc.UpdateConnectedProvider(id, updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{"message": "Provider updated successfully"})
+}
+
+// RemoveConnectedProvider removes a connected provider
+func (h *AdminHandler) RemoveConnectedProvider(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider ID required"})
+		return
+	}
+	
+	if err := h.providerSvc.RemoveConnectedProvider(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{"message": "Provider removed successfully"})
+}
+
+// SyncProviderByID syncs a specific provider by ID
+func (h *AdminHandler) SyncProviderByID(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider ID required"})
+		return
+	}
+	
+	// Start sync in background
+	go func() {
+		syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
+			return client.FetchDomains()
+		}
+		
+		if err := h.providerSvc.SyncProvider(id, syncFunc); err != nil {
+			log.Printf("Sync failed for provider %s: %v", id, err)
+		} else {
+			log.Printf("Sync completed for provider %s", id)
+		}
+	}()
+	
+	c.JSON(http.StatusAccepted, gin.H{
+		"message":     "Sync initiated",
+		"provider_id": id,
+	})
+}
+
+// SyncAllConnectedProviders syncs all enabled connected providers
+func (h *AdminHandler) SyncAllConnectedProviders(c *gin.Context) {
+	// Start sync in background
+	go func() {
+		syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
+			return client.FetchDomains()
+		}
+		
+		if err := h.providerSvc.SyncAllProviders(syncFunc); err != nil {
+			log.Printf("Sync all providers failed: %v", err)
+		} else {
+			log.Printf("Sync all providers completed")
+		}
+	}()
+	
+	c.JSON(http.StatusAccepted, gin.H{
+		"message": "Sync all providers initiated",
+	})
+}
+
+// GetAutoSyncStatus returns the auto-sync status for all providers
+func (h *AdminHandler) GetAutoSyncStatus(c *gin.Context) {
+	status := h.providerSvc.GetAutoSyncStatus()
+	c.JSON(http.StatusOK, status)
+}
+
+// StartAutoSync starts the auto-sync scheduler
+func (h *AdminHandler) StartAutoSync(c *gin.Context) {
+	syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
+		return client.FetchDomains()
+	}
+	
+	h.providerSvc.StartAutoSync(syncFunc)
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Auto-sync scheduler started",
+	})
+}
+
+// StopAutoSync stops the auto-sync scheduler
+func (h *AdminHandler) StopAutoSync(c *gin.Context) {
+	h.providerSvc.StopAutoSync()
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Auto-sync scheduler stopped",
+	})
+}
+
 // CheckDomainStatus checks the HTTP status of a single domain
 func (h *AdminHandler) CheckDomainStatus(c *gin.Context) {
 	id := c.Param("id")
@@ -805,40 +999,29 @@ func (h *AdminHandler) ConnectProvider(c *gin.Context) {
 		return
 	}
 
-	// Test connection if requested
-	if req.TestConnection {
-		testResponse, err := h.providerSvc.TestConnection(req.Provider, req.Credentials)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Connection test failed: %v", err)})
-			return
-		}
-		if !testResponse.Success {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Connection test failed",
-				"details": testResponse.Message,
-			})
-			return
-		}
-	}
-
-	// Create provider credentials
-	creds := &types.ProviderCredentials{
-		Provider:         req.Provider,
-		Name:             req.Name,
-		AccountName:      req.AccountName,
-		Credentials:      types.CredentialsMap(req.Credentials),
-		Enabled:          true,
-		ConnectionStatus: "connected",
-	}
-
-	if repo, ok := h.domainRepo.(interface{ CreateCredentials(*types.ProviderCredentials) error }); ok {
-		if err := repo.CreateCredentials(creds); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to save credentials: %v", err)})
-			return
-		}
-	} else {
-		c.JSON(http.StatusNotImplemented, gin.H{"error": "Credentials operations not implemented"})
+	// Use enhanced provider service to add connected provider
+	connectedProvider, err := h.providerSvc.AddConnectedProvider(&req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Also save to database if repository supports it
+	if repo, ok := h.domainRepo.(interface{ CreateCredentials(*types.ProviderCredentials) error }); ok {
+		creds := &types.ProviderCredentials{
+			ID:               connectedProvider.ID,
+			Provider:         req.Provider,
+			Name:             req.Name,
+			AccountName:      req.AccountName,
+			Credentials:      types.CredentialsMap(req.Credentials),
+			Enabled:          true,
+			ConnectionStatus: "connected",
+			CreatedAt:        connectedProvider.CreatedAt,
+			UpdatedAt:        connectedProvider.UpdatedAt,
+		}
+		if err := repo.CreateCredentials(creds); err != nil {
+			log.Printf("Warning: Failed to save credentials to database: %v", err)
+		}
 	}
 
 	// Log successful connection
@@ -847,32 +1030,20 @@ func (h *AdminHandler) ConnectProvider(c *gin.Context) {
 	response := types.ProviderConnectionResponse{
 		Success:    true,
 		Message:    "Provider connected successfully",
-		ProviderID: creds.ID,
+		ProviderID: connectedProvider.ID,
 	}
 
 	// Run initial sync if requested
 	if req.AutoSync {
 		go func() {
-			// Convert credentials for provider client
-			providerCreds := make(providers.ProviderCredentials)
-			for key, value := range req.Credentials {
-				providerCreds[key] = value
+			syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
+				return client.FetchDomains()
 			}
 			
-			// Add provider to sync service
-			client, err := providers.NewClient(req.Provider, providerCreds)
-			if err != nil {
-				fmt.Printf("Failed to create client for auto-sync: %v\n", err)
-				return
-			}
-			
-			h.syncSvc.AddProvider(req.Name, client)
-			
-			// Run sync
-			if err := h.syncSvc.Run(); err != nil {
-				fmt.Printf("Auto-sync failed for provider %s: %v\n", req.Name, err)
+			if err := h.providerSvc.SyncProvider(connectedProvider.ID, syncFunc); err != nil {
+				log.Printf("Auto-sync failed for provider %s: %v", req.Name, err)
 			} else {
-				fmt.Printf("Auto-sync completed for provider %s\n", req.Name)
+				log.Printf("Auto-sync completed for provider %s", req.Name)
 			}
 		}()
 		response.SyncStarted = true

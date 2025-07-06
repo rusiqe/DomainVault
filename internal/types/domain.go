@@ -162,12 +162,13 @@ type ProviderFieldInfo struct {
 
 // ProviderConnectionRequest represents a provider connection request
 type ProviderConnectionRequest struct {
-	Provider     string            `json:"provider" binding:"required"`
-	Name         string            `json:"name" binding:"required"`         // User-friendly name
-	AccountName  string            `json:"account_name" binding:"required"` // Account identifier
-	Credentials  map[string]string `json:"credentials" binding:"required"`  // API credentials
-	TestConnection bool            `json:"test_connection"`                 // Test before saving
-	AutoSync     bool              `json:"auto_sync"`                       // Run initial sync if test passes
+	Provider          string            `json:"provider" binding:"required"`
+	Name              string            `json:"name" binding:"required"`         // User-friendly name
+	AccountName       string            `json:"account_name" binding:"required"` // Account identifier
+	Credentials       map[string]string `json:"credentials" binding:"required"`  // API credentials
+	TestConnection    bool              `json:"test_connection"`                 // Test before saving
+	AutoSync          bool              `json:"auto_sync"`                       // Run initial sync if test passes
+	SyncIntervalHours int               `json:"sync_interval_hours"`             // Auto-sync interval in hours
 }
 
 // ProviderConnectionResponse represents the result of a connection attempt

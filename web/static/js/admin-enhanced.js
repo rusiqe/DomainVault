@@ -1,1085 +1,1637 @@
-// Enhanced DomainVault Admin Application
-class EnhancedAdminApp {
-    constructor() {
-        this.apiBase = window.location.origin + '/api/v1';
-        this.token = localStorage.getItem('admin_token');
-        this.user = null;
-        this.data = {
-            domains: [],
-            analytics: null,
-            security: null,
-            notifications: null,
-            providers: []
-        };
-        this.charts = {};
-        this.refreshIntervals = {};
-        
-        this.init();
+// State management
+const state = {
+    isAuthenticated: false,
+    authToken: null,
+    currentSection: 'dashboard',
+    dashboardData: null,
+    analyticsData: null,
+    securityData: null,
+    notificationsData: null,
+    domainsData: null,
+    providersData: null
+};
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+});
+
+function initializeApp() {
+    // Check if user is authenticated
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        state.authToken = token;
+        state.isAuthenticated = true;
+        hideLoginOverlay();
+        loadDashboard();
+    } else {
+        showLoginOverlay();
     }
 
-    async init() {
-        // Check if already logged in
-        if (this.token) {
-            if (await this.validateToken()) {
-                this.showDashboard();
-                return;
-            } else {
-                this.logout();
-            }
-        }
-        
-        this.setupEventListeners();
+    // Set up event listeners
+    setupEventListeners();
+}
+
+function setupEventListeners() {
+    // Login form submission
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
     }
 
-    setupEventListeners() {
-        // Login form
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+    // Menu item clicks
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.addEventListener('click', (e) => {
             e.preventDefault();
-            this.login();
-        });
-
-        // Logout button
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            this.logout();
-        });
-
-        // Tab switching
-        document.querySelectorAll('.nav-item').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.switchTab(e.target.closest('.nav-item').dataset.tab);
-            });
-        });
-
-        // Auto-refresh intervals
-        this.startAutoRefresh();
-    }
-
-    async login() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        const loginBtn = document.getElementById('loginBtn');
-        const loginText = document.getElementById('loginText');
-        const loginSpinner = document.getElementById('loginSpinner');
-        const errorMessage = document.getElementById('errorMessage');
-
-        // Show loading state
-        loginBtn.disabled = true;
-        loginText.style.display = 'none';
-        loginSpinner.style.display = 'inline';
-        errorMessage.style.display = 'none';
-
-        try {
-            const response = await fetch(`${this.apiBase}/auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.token = data.token;
-                this.user = data.user;
-                localStorage.setItem('admin_token', this.token);
-                this.showDashboard();
-            } else {
-                this.showError(data.error || 'Login failed');
-            }
-        } catch (error) {
-            this.showError('Connection error: ' + error.message);
-        } finally {
-            // Reset button state
-            loginBtn.disabled = false;
-            loginText.style.display = 'inline';
-            loginSpinner.style.display = 'none';
-        }
-    }
-
-    async validateToken() {
-        try {
-            const response = await this.apiCall('GET', '/admin/domains');
-            return response.ok;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    logout() {
-        if (this.token) {
-            this.apiCall('POST', '/auth/logout').catch(() => {});
-        }
-        
-        this.token = null;
-        this.user = null;
-        localStorage.removeItem('admin_token');
-        
-        // Clear intervals
-        Object.values(this.refreshIntervals).forEach(interval => clearInterval(interval));
-        this.refreshIntervals = {};
-        
-        document.getElementById('adminDashboard').style.display = 'none';
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('loginForm').reset();
-    }
-
-    showError(message) {
-        const errorMessage = document.getElementById('errorMessage');
-        errorMessage.textContent = message;
-        errorMessage.style.display = 'block';
-    }
-
-    async showDashboard() {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'block';
-        
-        if (this.user) {
-            document.getElementById('userEmail').textContent = this.user.email;
-        }
-        
-        // Load initial data
-        await this.loadDashboardData();
-    }
-
-    async loadDashboardData() {
-        this.showLoading(true);
-        
-        try {
-            // Load all data concurrently
-            await Promise.all([
-                this.loadPortfolioAnalytics(),
-                this.loadSecurityMetrics(),
-                this.loadDomains(),
-                this.loadProviders()
-            ]);
-            
-            // Render current tab
-            this.renderCurrentTab();
-            
-            // Create charts
-            this.initializeCharts();
-            
-        } catch (error) {
-            console.error('Failed to load dashboard data:', error);
-            this.showAlert('Failed to load dashboard data', 'error');
-        } finally {
-            this.showLoading(false);
-        }
-    }
-
-    switchTab(tabName) {
-        // Update tab buttons
-        document.querySelectorAll('.nav-item').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-        // Update tab content
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        document.getElementById(`${tabName}Tab`).classList.add('active');
-
-        // Render tab content
-        this.renderTab(tabName);
-    }
-
-    renderCurrentTab() {
-        const activeTab = document.querySelector('.nav-item.active');
-        if (activeTab) {
-            this.renderTab(activeTab.dataset.tab);
-        }
-    }
-
-    renderTab(tabName) {
-        switch (tabName) {
-            case 'overview':
-                this.renderOverviewTab();
-                break;
-            case 'analytics':
-                this.renderAnalyticsTab();
-                break;
-            case 'security':
-                this.renderSecurityTab();
-                break;
-            case 'notifications':
-                this.renderNotificationsTab();
-                break;
-            case 'domains':
-                this.renderDomainsTab();
-                break;
-            case 'providers':
-                this.renderProvidersTab();
-                break;
-        }
-    }
-
-    // Data loading methods
-    async loadPortfolioAnalytics() {
-        try {
-            const response = await this.apiCall('GET', '/admin/analytics/portfolio');
-            if (response.ok) {
-                this.data.analytics = await response.json();
-            }
-        } catch (error) {
-            console.error('Failed to load portfolio analytics:', error);
-        }
-    }
-
-    async loadSecurityMetrics() {
-        try {
-            const response = await this.apiCall('GET', '/admin/security/metrics');
-            if (response.ok) {
-                this.data.security = await response.json();
-            }
-        } catch (error) {
-            console.error('Failed to load security metrics:', error);
-        }
-    }
-
-    async loadDomains() {
-        try {
-            const response = await this.apiCall('GET', '/domains');
-            if (response.ok) {
-                const data = await response.json();
-                this.data.domains = data.domains || [];
-            }
-        } catch (error) {
-            console.error('Failed to load domains:', error);
-        }
-    }
-
-    async loadProviders() {
-        try {
-            const response = await this.apiCall('GET', '/admin/credentials');
-            if (response.ok) {
-                const data = await response.json();
-                this.data.providers = data.credentials || [];
-            }
-        } catch (error) {
-            console.error('Failed to load providers:', error);
-        }
-    }
-
-    // Tab rendering methods
-    renderOverviewTab() {
-        if (this.data.analytics) {
-            const overview = this.data.analytics.overview;
-            const financial = this.data.analytics.financial_metrics;
-            
-            // Update overview metrics
-            this.updateElement('totalDomains', overview.total_domains || 0);
-            this.updateElement('expiringSoon', overview.domains_expiring_30 || 0);
-            this.updateElement('renewalCost', this.formatCurrency(financial.renewal_cost_next_90_days || 0));
-            this.updateElement('portfolioValue', this.formatCurrency(financial.estimated_value.total_estimated_value || 0));
-        }
-
-        // Show summary for domains with actual data
-        const activeDomains = this.data.domains.filter(d => d.status === 'active').length;
-        const expiredDomains = this.data.domains.filter(d => d.status === 'expired').length;
-        
-        this.updateElement('totalDomains', this.data.domains.length);
-        
-        // Calculate expiring domains (within 30 days)
-        const now = new Date();
-        const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-        const expiringSoon = this.data.domains.filter(d => {
-            const expiryDate = new Date(d.expires_at);
-            return expiryDate <= thirtyDaysFromNow && expiryDate >= now;
-        }).length;
-        
-        this.updateElement('expiringSoon', expiringSoon);
-        
-        // Calculate total renewal cost for next 90 days
-        const ninetyDaysFromNow = new Date(now.getTime() + (90 * 24 * 60 * 60 * 1000));
-        const renewalCostNext90 = this.data.domains
-            .filter(d => {
-                const expiryDate = new Date(d.expires_at);
-                return expiryDate <= ninetyDaysFromNow && expiryDate >= now;
-            })
-            .reduce((sum, d) => sum + (d.renewal_price || 15), 0);
-        
-        this.updateElement('renewalCost', this.formatCurrency(renewalCostNext90));
-        
-        // Calculate estimated portfolio value
-        const portfolioValue = this.data.domains.reduce((sum, d) => {
-            return sum + this.estimateDomainValue(d);
-        }, 0);
-        
-        this.updateElement('portfolioValue', this.formatCurrency(portfolioValue));
-        
-        // Security and uptime placeholders
-        this.updateElement('securityScore', '85');
-        this.updateElement('uptimePercent', '99.8%');
-
-        // Update charts
-        this.updateOverviewCharts();
-    }
-
-    renderAnalyticsTab() {
-        this.renderFinancialAnalytics();
-        this.renderPremiumDomains();
-    }
-
-    renderSecurityTab() {
-        // Render security metrics
-        if (this.data.security) {
-            this.updateElement('loginAttempts', this.data.security.login_attempts?.total_attempts || 0);
-            this.updateElement('securityAlerts', this.data.security.security_alerts?.total_alerts || 0);
-            this.updateElement('activeSessions', this.data.security.active_sessions?.active_sessions || 0);
-            this.updateElement('vulnerabilities', this.data.security.risk_assessment?.vulnerability_count || 0);
-        } else {
-            // Placeholder data
-            this.updateElement('loginAttempts', '45');
-            this.updateElement('securityAlerts', '2');
-            this.updateElement('activeSessions', '3');
-            this.updateElement('vulnerabilities', '0');
-        }
-
-        this.renderAuditEvents();
-    }
-
-    renderNotificationsTab() {
-        // Placeholder data for notifications
-        this.updateElement('emailAlerts', '156');
-        this.updateElement('slackNotifications', '89');
-        this.updateElement('webhooks', '234');
-        this.updateElement('activeRules', '7');
-
-        this.renderNotificationRules();
-    }
-
-    renderDomainsTab() {
-        this.renderDomainsTable();
-    }
-
-    renderProvidersTab() {
-        this.updateElement('connectedProviders', this.data.providers.length);
-        this.updateElement('lastSync', '5');
-        this.updateElement('domainsSynced', this.data.domains.length);
-        this.updateElement('syncIssues', '0');
-        
-        this.renderProvidersTable();
-    }
-
-    // Chart initialization
-    initializeCharts() {
-        this.initializeGrowthChart();
-        this.initializeProviderChart();
-        this.initializeFinancialChart();
-        this.initializeExpirationChart();
-    }
-
-    initializeGrowthChart() {
-        const ctx = document.getElementById('growthChart');
-        if (!ctx) return;
-
-        // Generate sample growth data
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        const data = [15, 17, 19, 20, 21, 21]; // Domain count growth
-
-        this.charts.growth = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: months,
-                datasets: [{
-                    label: 'Domains',
-                    data: data,
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0,0,0,0.1)'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
+            const section = item.getAttribute('data-section');
+            if (section) {
+                switchSection(section);
             }
         });
+    });
+
+    // Logout functionality
+    const logoutBtn = document.querySelector('.logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
     }
+}
 
-    initializeProviderChart() {
-        const ctx = document.getElementById('providerChart');
-        if (!ctx) return;
+// Authentication functions
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
 
-        // Calculate provider distribution from actual data
-        const providerCounts = {};
-        this.data.domains.forEach(domain => {
-            providerCounts[domain.provider] = (providerCounts[domain.provider] || 0) + 1;
-        });
-
-        const labels = Object.keys(providerCounts);
-        const data = Object.values(providerCounts);
-        const colors = ['#3498db', '#e74c3c', '#f39c12', '#27ae60'];
-
-        this.charts.provider = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: colors.slice(0, labels.length)
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-    }
-
-    initializeFinancialChart() {
-        const ctx = document.getElementById('financialChart');
-        if (!ctx) return;
-
-        // Generate sample financial data
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        const costs = [350, 420, 380, 450, 390, 480];
-
-        this.charts.financial = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: months,
-                datasets: [{
-                    label: 'Renewal Costs',
-                    data: costs,
-                    backgroundColor: '#e74c3c',
-                    borderColor: '#c0392b',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + value;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    initializeExpirationChart() {
-        const ctx = document.getElementById('expirationChart');
-        if (!ctx) return;
-
-        // Calculate expiration timeline
-        const now = new Date();
-        const expirationCounts = {
-            '0-30 days': 0,
-            '31-90 days': 0,
-            '91-180 days': 0,
-            '180+ days': 0
-        };
-
-        this.data.domains.forEach(domain => {
-            const expiryDate = new Date(domain.expires_at);
-            const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-
-            if (daysUntilExpiry <= 30) {
-                expirationCounts['0-30 days']++;
-            } else if (daysUntilExpiry <= 90) {
-                expirationCounts['31-90 days']++;
-            } else if (daysUntilExpiry <= 180) {
-                expirationCounts['91-180 days']++;
-            } else {
-                expirationCounts['180+ days']++;
-            }
-        });
-
-        this.charts.expiration = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(expirationCounts),
-                datasets: [{
-                    label: 'Domains',
-                    data: Object.values(expirationCounts),
-                    backgroundColor: ['#e74c3c', '#f39c12', '#f1c40f', '#27ae60']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-    }
-
-    // Table rendering methods
-    renderDomainsTable() {
-        const tbody = document.getElementById('domainsTable');
-        if (!tbody) return;
-
-        if (this.data.domains.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" style="text-align: center; padding: 40px;">
-                        No domains found
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tbody.innerHTML = this.data.domains.map(domain => {
-            const statusClass = this.getStatusClass(domain.status);
-            const expiryDate = new Date(domain.expires_at);
-            const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
-            
-            return `
-                <tr>
-                    <td><input type="checkbox" value="${domain.id}"></td>
-                    <td><strong>${domain.name}</strong></td>
-                    <td>${domain.provider}</td>
-                    <td>
-                        ${this.formatDate(domain.expires_at)}
-                        <small style="display: block; color: #666;">
-                            ${daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : 'Expired'}
-                        </small>
-                    </td>
-                    <td><span class="status-badge ${statusClass}">${domain.status}</span></td>
-                    <td>${this.formatCurrency(domain.renewal_price || 15)}</td>
-                    <td>${this.formatCurrency(this.estimateDomainValue(domain))}</td>
-                    <td>
-                        <button class="action-button primary" onclick="editDomain('${domain.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-button" onclick="checkDomainStatus('${domain.id}')">
-                            <i class="fas fa-check"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    renderProvidersTable() {
-        const tbody = document.querySelector('#credentialsTable tbody');
-        if (!tbody) return;
-
-        if (this.data.providers.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" style="text-align: center; padding: 40px;">
-                        No provider credentials found. 
-                        <a href="#" onclick="connectProvider()">Connect a provider</a>
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tbody.innerHTML = this.data.providers.map(provider => {
-            const domainCount = this.data.domains.filter(d => d.provider === provider.provider).length;
-            const statusClass = provider.connection_status === 'connected' ? 'status-online' : 'status-offline';
-            
-            return `
-                <tr>
-                    <td><strong>${provider.name}</strong></td>
-                    <td>${provider.provider}</td>
-                    <td><span class="status-badge ${statusClass}">${provider.connection_status}</span></td>
-                    <td>${provider.last_sync ? this.formatDate(provider.last_sync) : 'Never'}</td>
-                    <td>${domainCount}</td>
-                    <td>
-                        <button class="action-button primary" onclick="testProvider('${provider.id}')">
-                            <i class="fas fa-test"></i> Test
-                        </button>
-                        <button class="action-button" onclick="syncProvider('${provider.id}')">
-                            <i class="fas fa-sync-alt"></i> Sync
-                        </button>
-                        <button class="action-button danger" onclick="deleteProvider('${provider.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    renderFinancialAnalytics() {
-        // This would be populated with real financial analytics data
-        // For now, using placeholder data from domains
-    }
-
-    renderPremiumDomains() {
-        const tbody = document.getElementById('premiumDomainsTable');
-        if (!tbody) return;
-
-        // Calculate premium domains (estimated value > 5x renewal cost)
-        const premiumDomains = this.data.domains
-            .map(domain => {
-                const renewalCost = domain.renewal_price || 15;
-                const estimatedValue = this.estimateDomainValue(domain);
-                const valueMultiplier = estimatedValue / renewalCost;
-                
-                return {
-                    ...domain,
-                    estimatedValue,
-                    renewalCost,
-                    valueMultiplier
-                };
-            })
-            .filter(domain => domain.valueMultiplier > 5)
-            .sort((a, b) => b.estimatedValue - a.estimatedValue)
-            .slice(0, 10); // Top 10
-
-        if (premiumDomains.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" style="text-align: center; padding: 40px;">
-                        No premium domains identified in your portfolio
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tbody.innerHTML = premiumDomains.map(domain => `
-            <tr>
-                <td><strong>${domain.name}</strong></td>
-                <td>${this.formatCurrency(domain.estimatedValue)}</td>
-                <td>${this.formatCurrency(domain.renewalCost)}</td>
-                <td>${domain.valueMultiplier.toFixed(1)}x</td>
-                <td>
-                    <small>
-                        ${this.getDomainValueFactors(domain).join(', ')}
-                    </small>
-                </td>
-                <td>
-                    <button class="action-button primary" onclick="analyzeDomain('${domain.id}')">
-                        <i class="fas fa-analytics"></i> Analyze
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    renderAuditEvents() {
-        const tbody = document.getElementById('auditEventsTable');
-        if (!tbody) return;
-
-        // Sample audit events
-        const sampleEvents = [
-            {
-                timestamp: new Date(Date.now() - 1000 * 60 * 30),
-                user: 'admin',
-                action: 'Domain Status Check',
-                resource: 'techsolutions.com',
-                ip: '192.168.1.100',
-                risk: 15,
-                status: 'success'
-            },
-            {
-                timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-                user: 'admin',
-                action: 'Provider Connection',
-                resource: 'Mock Provider',
-                ip: '192.168.1.100',
-                risk: 25,
-                status: 'success'
-            },
-            {
-                timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4),
-                user: 'admin',
-                action: 'Bulk Sync',
-                resource: 'All Providers',
-                ip: '192.168.1.100',
-                risk: 35,
-                status: 'success'
-            }
-        ];
-
-        tbody.innerHTML = sampleEvents.map(event => `
-            <tr>
-                <td>${this.formatDateTime(event.timestamp)}</td>
-                <td>${event.user}</td>
-                <td>${event.action}</td>
-                <td>${event.resource}</td>
-                <td>${event.ip}</td>
-                <td>
-                    <span style="color: ${this.getRiskColor(event.risk)}">
-                        ${event.risk}
-                    </span>
-                </td>
-                <td>
-                    <span class="status-badge ${event.status === 'success' ? 'status-online' : 'status-offline'}">
-                        ${event.status}
-                    </span>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    renderNotificationRules() {
-        const tbody = document.getElementById('notificationRulesTable');
-        if (!tbody) return;
-
-        // Sample notification rules
-        const sampleRules = [
-            {
-                name: 'Expiration Alerts',
-                alertTypes: 'Domain Expiring',
-                channels: 'Email, Slack',
-                recipients: 'admin@domain.com',
-                status: 'enabled'
-            },
-            {
-                name: 'Security Alerts',
-                alertTypes: 'Security Violation',
-                channels: 'Email, Webhook',
-                recipients: 'security@domain.com',
-                status: 'enabled'
-            },
-            {
-                name: 'Sync Failures',
-                alertTypes: 'Sync Failed',
-                channels: 'Slack',
-                recipients: '#alerts',
-                status: 'enabled'
-            }
-        ];
-
-        tbody.innerHTML = sampleRules.map((rule, index) => `
-            <tr>
-                <td><strong>${rule.name}</strong></td>
-                <td>${rule.alertTypes}</td>
-                <td>${rule.channels}</td>
-                <td>${rule.recipients}</td>
-                <td>
-                    <span class="status-badge status-online">
-                        ${rule.status}
-                    </span>
-                </td>
-                <td>
-                    <button class="action-button primary" onclick="editNotificationRule(${index})">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-button danger" onclick="deleteNotificationRule(${index})">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // Utility methods
-    updateOverviewCharts() {
-        // Update chart data if charts exist
-        if (this.charts.provider) {
-            // Update provider chart with current data
-            const providerCounts = {};
-            this.data.domains.forEach(domain => {
-                providerCounts[domain.provider] = (providerCounts[domain.provider] || 0) + 1;
-            });
-
-            this.charts.provider.data.labels = Object.keys(providerCounts);
-            this.charts.provider.data.datasets[0].data = Object.values(providerCounts);
-            this.charts.provider.update();
-        }
-    }
-
-    estimateDomainValue(domain) {
-        let value = 50; // Base value
-
-        // Length factor
-        const domainName = domain.name.split('.')[0];
-        if (domainName.length <= 3) value *= 10;
-        else if (domainName.length <= 5) value *= 5;
-        else if (domainName.length <= 8) value *= 2;
-
-        // TLD factor
-        if (domain.name.endsWith('.com')) value *= 3;
-        else if (domain.name.endsWith('.io')) value *= 2;
-        else if (domain.name.endsWith('.ai')) value *= 4;
-
-        // Age factor (simplified)
-        const age = (new Date() - new Date(domain.created_at)) / (1000 * 60 * 60 * 24 * 365);
-        if (age > 5) value *= 1.5;
-
-        // Status factor
-        if (domain.http_status === 200) value *= 1.2;
-
-        return Math.round(value);
-    }
-
-    getDomainValueFactors(domain) {
-        const factors = [];
-        const domainName = domain.name.split('.')[0];
-        
-        if (domainName.length <= 5) factors.push('Short name');
-        if (domain.name.endsWith('.com')) factors.push('Premium TLD');
-        if (domain.http_status === 200) factors.push('Active website');
-        
-        const age = (new Date() - new Date(domain.created_at)) / (1000 * 60 * 60 * 24 * 365);
-        if (age > 5) factors.push('Established domain');
-        
-        return factors;
-    }
-
-    getStatusClass(status) {
-        switch (status) {
-            case 'active': return 'status-online';
-            case 'expired': return 'status-offline';
-            default: return 'status-warning';
-        }
-    }
-
-    getRiskColor(risk) {
-        if (risk >= 80) return '#e74c3c';
-        if (risk >= 60) return '#f39c12';
-        if (risk >= 40) return '#f1c40f';
-        return '#27ae60';
-    }
-
-    updateElement(id, value) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    }
-
-    formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount);
-    }
-
-    formatDate(dateString) {
-        return new Date(dateString).toLocaleDateString();
-    }
-
-    formatDateTime(date) {
-        return date.toLocaleString();
-    }
-
-    showLoading(show) {
-        const overlay = document.getElementById('loadingOverlay');
-        if (overlay) {
-            overlay.classList.toggle('hidden', !show);
-        }
-    }
-
-    showAlert(message, type = 'info') {
-        const container = document.getElementById('alertContainer');
-        if (!container) return;
-
-        const alertClass = type === 'error' ? 'critical' : 
-                          type === 'success' ? 'success' : '';
-
-        const alert = document.createElement('div');
-        alert.className = `alert-banner ${alertClass}`;
-        alert.innerHTML = `
-            <i class="fas fa-info-circle"></i>
-            ${message}
-            <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; margin-left: 10px;">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-
-        container.appendChild(alert);
-
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (alert.parentElement) {
-                alert.remove();
-            }
-        }, 5000);
-    }
-
-    startAutoRefresh() {
-        // Refresh overview data every 30 seconds
-        this.refreshIntervals.overview = setInterval(() => {
-            if (document.querySelector('.nav-item.active')?.dataset.tab === 'overview') {
-                this.loadPortfolioAnalytics();
-            }
-        }, 30000);
-
-        // Refresh security data every 60 seconds
-        this.refreshIntervals.security = setInterval(() => {
-            if (document.querySelector('.nav-item.active')?.dataset.tab === 'security') {
-                this.loadSecurityMetrics();
-            }
-        }, 60000);
-    }
-
-    async apiCall(method, endpoint, data = null) {
-        const url = `${this.apiBase}${endpoint}`;
-        const options = {
-            method,
+    try {
+        const response = await fetch('/api/v1/auth/login', {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
-        };
+            },
+            body: JSON.stringify({ username, password })
+        });
 
-        if (this.token) {
-            options.headers.Authorization = `Bearer ${this.token}`;
+        if (response.ok) {
+            const data = await response.json();
+            state.authToken = data.token;
+            state.isAuthenticated = true;
+            localStorage.setItem('authToken', data.token);
+            
+            hideLoginOverlay();
+            loadDashboard();
+        } else {
+            showError('Invalid credentials. Please try again.');
+        }
+    } catch (error) {
+        showError('Login failed. Please check your connection.');
+        console.error('Login error:', error);
+    }
+}
+
+function logout() {
+    state.isAuthenticated = false;
+    state.authToken = null;
+    localStorage.removeItem('authToken');
+    showLoginOverlay();
+}
+
+function showLoginOverlay() {
+    document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+function hideLoginOverlay() {
+    document.getElementById('loginOverlay').style.display = 'none';
+}
+
+function showError(message) {
+    alert(message);
+}
+
+// Navigation functions
+function switchSection(sectionName) {
+    // Update active menu item
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+
+    // Hide all sections
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+    });
+
+    // Show selected section
+    document.getElementById(sectionName).classList.add('active');
+
+    // Update state
+    state.currentSection = sectionName;
+
+    // Load section data
+    loadSectionData(sectionName);
+}
+
+async function loadSectionData(section) {
+    switch (section) {
+        case 'dashboard':
+            await loadDashboard();
+            break;
+        case 'analytics':
+            await loadAnalytics();
+            break;
+        case 'domains':
+            await loadDomains();
+            break;
+        case 'providers':
+            await loadProviders();
+            break;
+        case 'security':
+            await loadSecurity();
+            break;
+        case 'notifications':
+            await loadNotifications();
+            break;
+        case 'audit':
+            await loadAuditLog();
+            break;
+        case 'dns':
+            await loadDNSManagement();
+            break;
+        default:
+            console.log(`Section ${section} not implemented yet`);
+    }
+}
+
+// API helper function
+async function apiCall(endpoint, options = {}) {
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.authToken}`
+        }
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+    
+    try {
+        const response = await fetch(endpoint, finalOptions);
+        
+        if (response.status === 401) {
+            logout();
+            return null;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('API call failed:', error);
+        return null;
+    }
+}
+
+// Dashboard functions
+async function loadDashboard() {
+    try {
+        // Load portfolio analytics
+        const portfolioData = await apiCall('/api/v1/admin/analytics/portfolio');
+        if (portfolioData) {
+            updateDashboardMetrics(portfolioData);
         }
 
-        if (data) {
-            options.body = JSON.stringify(data);
+        // Load recent domains
+        const domainsData = await apiCall('/api/v1/domains');
+        if (domainsData) {
+            updateRecentDomainsTable(domainsData.domains || []);
+        }
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+function updateDashboardMetrics(data) {
+    const overview = data.overview || {};
+    const financial = data.financial_metrics || {};
+
+    // Update metric cards
+    document.getElementById('totalDomains').textContent = overview.total_domains || '-';
+    document.getElementById('activeDomains').textContent = overview.active_domains || '-';
+    document.getElementById('expiringDomains').textContent = overview.domains_expiring_30 || '-';
+    document.getElementById('totalValue').textContent = financial.total_estimated_value ? 
+        `$${financial.total_estimated_value.toLocaleString()}` : '$-';
+}
+
+function updateRecentDomainsTable(domains) {
+    const tbody = document.querySelector('#recentDomainsTable tbody');
+    if (!tbody) return;
+
+    if (domains.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">No domains found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = domains.slice(0, 10).map(domain => `
+        <tr>
+            <td>${domain.name}</td>
+            <td><span class="status-badge ${getStatusClass(domain.status)}">${domain.status}</span></td>
+            <td>${formatDate(domain.expires_at)}</td>
+            <td>${domain.provider || '-'}</td>
+            <td>
+                <button class="btn btn-secondary" onclick="viewDomain('${domain.id}')">View</button>
+                <button class="btn btn-primary" onclick="editDomain('${domain.id}')">Edit</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Analytics functions
+async function loadAnalytics() {
+    try {
+        const portfolioData = await apiCall('/api/v1/admin/analytics/portfolio');
+        const financialData = await apiCall('/api/v1/admin/analytics/financial');
+        
+        if (portfolioData) {
+            // Create charts here
+            createPortfolioChart(portfolioData);
+        }
+        
+        if (financialData) {
+            createFinancialChart(financialData);
+        }
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+function createPortfolioChart(data) {
+    const ctx = document.getElementById('portfolioChart');
+    if (!ctx) return;
+
+    // Basic chart implementation - you can enhance this with Chart.js
+    const chartContainer = ctx.getContext('2d');
+    chartContainer.fillStyle = '#1877f2';
+    chartContainer.fillRect(0, 0, ctx.width, ctx.height);
+    chartContainer.fillStyle = 'white';
+    chartContainer.font = '16px sans-serif';
+    chartContainer.textAlign = 'center';
+    chartContainer.fillText('Portfolio Growth Chart', ctx.width/2, ctx.height/2);
+}
+
+function createFinancialChart(data) {
+    const ctx = document.getElementById('financialChart');
+    if (!ctx) return;
+
+    const chartContainer = ctx.getContext('2d');
+    chartContainer.fillStyle = '#42b883';
+    chartContainer.fillRect(0, 0, ctx.width, ctx.height);
+    chartContainer.fillStyle = 'white';
+    chartContainer.font = '16px sans-serif';
+    chartContainer.textAlign = 'center';
+    chartContainer.fillText('Financial Overview Chart', ctx.width/2, ctx.height/2);
+}
+
+// Domains functions
+async function loadDomains() {
+    try {
+        const data = await apiCall('/api/v1/domains');
+        if (data && data.domains) {
+            updateAllDomainsTable(data.domains);
+        }
+    } catch (error) {
+        console.error('Error loading domains:', error);
+    }
+}
+
+function updateAllDomainsTable(domains) {
+    const tbody = document.querySelector('#allDomainsTable tbody');
+    if (!tbody) return;
+
+    if (domains.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">No domains found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = domains.map(domain => `
+        <tr>
+            <td>${domain.name}</td>
+            <td><span class="status-badge ${getStatusClass(domain.status)}">${domain.status}</span></td>
+            <td>${formatDate(domain.expires_at)}</td>
+            <td>${domain.provider || '-'}</td>
+            <td>${domain.category_name || '-'}</td>
+            <td>
+                <button class="btn btn-secondary" onclick="viewDomain('${domain.id}')">View</button>
+                <button class="btn btn-primary" onclick="editDomain('${domain.id}')">Edit</button>
+                <button class="btn btn-danger" onclick="deleteDomain('${domain.id}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Providers functions
+async function loadProviders() {
+    try {
+        // Load supported providers
+        const supportedData = await apiCall('/api/v1/admin/providers/supported');
+        if (supportedData) {
+            updateSupportedProvidersList(supportedData.providers || []);
+            populateProviderSelect(supportedData.providers || []);
         }
 
-        return fetch(url, options);
+        // Load connected providers
+        const connectedData = await apiCall('/api/v1/admin/providers/connected');
+        if (connectedData) {
+            updateConnectedProvidersList(connectedData.providers || []);
+        }
+
+        // Load auto-sync status
+        const autoSyncData = await apiCall('/api/v1/admin/providers/auto-sync/status');
+        if (autoSyncData) {
+            updateAutoSyncStatus(autoSyncData);
+        }
+    } catch (error) {
+        console.error('Error loading providers:', error);
+        showNotification('Failed to load provider data', 'error');
     }
 }
 
-// Global function handlers for button clicks
-function refreshAnalytics() {
-    app.loadPortfolioAnalytics().then(() => {
-        app.renderAnalyticsTab();
-        app.showAlert('Analytics refreshed successfully', 'success');
-    });
-}
+function updateSupportedProvidersList(providers) {
+    const container = document.getElementById('supportedProvidersContainer');
+    if (!container) return;
 
-function createNotificationRule() {
-    app.showAlert('Notification rule creation coming soon', 'info');
-}
-
-function testNotifications() {
-    app.apiCall('POST', '/admin/notifications/test').then(() => {
-        app.showAlert('Test notification sent successfully', 'success');
-    });
-}
-
-function refreshNotifications() {
-    app.showAlert('Notifications refreshed', 'success');
-}
-
-function searchDomains() {
-    const search = document.getElementById('domainSearch').value;
-    const provider = document.getElementById('domainProvider').value;
-    const status = document.getElementById('domainStatus').value;
-    
-    // Filter domains based on criteria
-    let filteredDomains = app.data.domains;
-    
-    if (search) {
-        filteredDomains = filteredDomains.filter(d => 
-            d.name.toLowerCase().includes(search.toLowerCase())
-        );
+    if (providers.length === 0) {
+        container.innerHTML = '<div class="loading">No supported providers found</div>';
+        return;
     }
-    
-    if (provider) {
-        filteredDomains = filteredDomains.filter(d => d.provider === provider);
+
+    container.innerHTML = providers.map(provider => `
+        <div class="supported-provider">
+            <div class="supported-provider-info">
+                <div class="supported-provider-logo">
+                    <i class="${getProviderIcon(provider.name)}"></i>
+                </div>
+                <div>
+                    <h3>${provider.display_name || provider.name}</h3>
+                    <p>${provider.description || 'Domain provider'}</p>
+                    <small>Required credentials: ${provider.required_credentials ? provider.required_credentials.join(', ') : 'API Key'}</small>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="showAddProviderModal('${provider.name}')">
+                <i class="fas fa-plus"></i>
+                Connect
+            </button>
+        </div>
+    `).join('');
+}
+
+function updateConnectedProvidersList(providers) {
+    const container = document.getElementById('connectedProvidersContainer');
+    if (!container) return;
+
+    if (providers.length === 0) {
+        container.innerHTML = '<div class="loading">No connected providers found</div>';
+        return;
     }
-    
-    if (status) {
-        filteredDomains = filteredDomains.filter(d => d.status === status);
-    }
-    
-    // Temporarily update domains for rendering
-    const originalDomains = app.data.domains;
-    app.data.domains = filteredDomains;
-    app.renderDomainsTable();
-    app.data.domains = originalDomains;
-    
-    app.showAlert(`Found ${filteredDomains.length} domains`, 'success');
+
+    container.innerHTML = providers.map(provider => `
+        <div class="provider-card">
+            <div class="provider-header">
+                <div class="provider-info">
+                    <div class="provider-icon">
+                        <i class="${getProviderIcon(provider.provider)}"></i>
+                    </div>
+                    <div class="provider-meta">
+                        <h3>${provider.name || provider.provider}</h3>
+                        <p>${provider.account_name}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="provider-status">
+                <div class="status-indicator ${getConnectionStatus(provider.connection_status)}">
+                    <i class="fas fa-circle"></i>
+                    ${provider.connection_status || 'Unknown'}
+                </div>
+            </div>
+            <div class="provider-stats">
+                <div class="stat-item">
+                    <div class="stat-value">${provider.domain_count || '0'}</div>
+                    <div class="stat-label">Domains</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${provider.auto_sync ? 'On' : 'Off'}</div>
+                    <div class="stat-label">Auto-Sync</div>
+                </div>
+            </div>
+            <div class="provider-actions">
+                <button class="btn btn-secondary" onclick="showProviderDetails('${provider.id}')">
+                    <i class="fas fa-info-circle"></i>
+                    Details
+                </button>
+                <button class="btn btn-success" onclick="syncProviderById('${provider.id}')">
+                    <i class="fas fa-sync"></i>
+                    Sync
+                </button>
+            </div>
+            ${provider.last_sync ? `<div style="margin-top: 12px; font-size: 12px; color: #65676b;">Last sync: ${formatDate(provider.last_sync)}</div>` : ''}
+        </div>
+    `).join('');
 }
 
-function bulkActions() {
-    app.showAlert('Bulk actions coming soon', 'info');
+function updateAutoSyncStatus(status) {
+    const statusElement = document.getElementById('autoSyncStatus');
+    const toggleButton = document.getElementById('autoSyncToggle');
+    
+    if (!statusElement || !toggleButton) return;
+
+    const isRunning = status.running || false;
+    const activeProviders = status.active_providers || 0;
+    
+    statusElement.innerHTML = `
+        <div class="status-indicator ${isRunning ? 'online' : 'offline'}">
+            <i class="fas fa-circle"></i>
+            Auto-Sync ${isRunning ? 'Active' : 'Disabled'}
+        </div>
+        <div class="sync-details">
+            <p>${isRunning ? `Monitoring ${activeProviders} provider(s) for automatic synchronization.` : 'Enable auto-sync to automatically synchronize domains from all connected providers based on their configured intervals.'}</p>
+        </div>
+    `;
+    
+    toggleButton.innerHTML = `
+        <i class="fas fa-${isRunning ? 'stop' : 'play'}"></i>
+        ${isRunning ? 'Stop Auto-Sync' : 'Start Auto-Sync'}
+    `;
+    toggleButton.className = `btn ${isRunning ? 'btn-danger' : 'btn-success'}`;
 }
 
-function connectProvider() {
-    app.showAlert('Provider connection dialog coming soon', 'info');
-}
+function populateProviderSelect(providers) {
+    const select = document.getElementById('providerSelect');
+    if (!select) return;
 
-function syncAllProviders() {
-    app.showAlert('Syncing all providers...', 'info');
-    app.apiCall('POST', '/sync').then(() => {
-        app.showAlert('Sync completed successfully', 'success');
-        app.loadDomains();
+    select.innerHTML = '<option value="">Select a provider...</option>';
+    providers.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.name;
+        option.textContent = provider.display_name || provider.name;
+        option.dataset.credentials = JSON.stringify(provider.required_credentials || ['api_key']);
+        select.appendChild(option);
     });
 }
 
-function refreshProviders() {
-    app.loadProviders().then(() => {
-        app.renderProvidersTab();
-        app.showAlert('Providers refreshed', 'success');
-    });
+function getProviderIcon(provider) {
+    const icons = {
+        'namecheap': 'fas fa-shopping-cart',
+        'godaddy': 'fas fa-globe',
+        'cloudflare': 'fas fa-cloud',
+        'route53': 'fab fa-aws',
+        'digitalocean': 'fab fa-digital-ocean',
+        'default': 'fas fa-server'
+    };
+    return icons[provider?.toLowerCase()] || icons.default;
+}
+
+function getConnectionStatus(status) {
+    const statusMap = {
+        'connected': 'online',
+        'disconnected': 'offline',
+        'error': 'offline',
+        'syncing': 'syncing'
+    };
+    return statusMap[status?.toLowerCase()] || 'offline';
+}
+
+// Security functions
+async function loadSecurity() {
+    try {
+        const data = await apiCall('/api/v1/admin/security/metrics');
+        // Load security metrics and update the interface
+        console.log('Security data:', data);
+    } catch (error) {
+        console.error('Error loading security:', error);
+    }
+}
+
+// Notifications functions
+async function loadNotifications() {
+    try {
+        const data = await apiCall('/api/v1/admin/notifications/rules');
+        // Load notifications and update the interface
+        console.log('Notifications data:', data);
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+    }
+}
+
+// Audit Log functions
+async function loadAuditLog() {
+    try {
+        const data = await apiCall('/api/v1/admin/security/audit');
+        // Load audit log and update the interface
+        console.log('Audit log data:', data);
+    } catch (error) {
+        console.error('Error loading audit log:', error);
+    }
+}
+
+// Utility functions
+function getStatusClass(status) {
+    switch (status?.toLowerCase()) {
+        case 'active':
+            return 'status-active';
+        case 'expired':
+            return 'status-expired';
+        case 'expiring':
+            return 'status-expiring';
+        default:
+            return 'status-active';
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString();
+}
+
+// Action functions (placeholders)
+function viewDomain(id) {
+    console.log('View domain:', id);
 }
 
 function editDomain(id) {
-    app.showAlert(`Edit domain ${id} coming soon`, 'info');
+    console.log('Edit domain:', id);
 }
 
-function checkDomainStatus(id) {
-    app.apiCall('POST', `/admin/domains/${id}/check-status`).then(() => {
-        app.showAlert('Domain status checked', 'success');
+function deleteDomain(id) {
+    if (confirm('Are you sure you want to delete this domain?')) {
+        console.log('Delete domain:', id);
+    }
+}
+
+// Provider Modal Functions
+function showAddProviderModal(providerName = '') {
+    const modal = document.getElementById('addProviderModal');
+    if (!modal) return;
+    
+    // Reset form
+    document.getElementById('addProviderForm').reset();
+    document.getElementById('credentialsContainer').innerHTML = '';
+    document.getElementById('autoSyncSettings').style.display = 'none';
+    
+    // Pre-select provider if specified
+    if (providerName) {
+        document.getElementById('providerSelect').value = providerName;
+        onProviderSelectChange();
+    }
+    
+    modal.style.display = 'flex';
+}
+
+function hideAddProviderModal() {
+    const modal = document.getElementById('addProviderModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function showProviderDetails(providerId) {
+    const modal = document.getElementById('providerDetailsModal');
+    if (!modal) return;
+    
+    // Store current provider ID
+    window.currentProviderId = providerId;
+    
+    // Load provider details
+    loadProviderDetails(providerId);
+    
+    modal.style.display = 'flex';
+}
+
+function hideProviderDetailsModal() {
+    const modal = document.getElementById('providerDetailsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function loadProviderDetails(providerId) {
+    try {
+        const provider = await apiCall(`/api/v1/admin/providers/connected/${providerId}`);
+        if (provider) {
+            updateProviderDetailsModal(provider);
+        }
+    } catch (error) {
+        console.error('Error loading provider details:', error);
+        showNotification('Failed to load provider details', 'error');
+    }
+}
+
+function updateProviderDetailsModal(provider) {
+    const content = document.getElementById('providerDetailsContent');
+    if (!content) return;
+    
+    content.innerHTML = `
+        <div class="provider-details">
+            <div class="detail-section">
+                <h3>Basic Information</h3>
+                <div class="detail-row">
+                    <strong>Provider:</strong> ${provider.provider}
+                </div>
+                <div class="detail-row">
+                    <strong>Display Name:</strong> ${provider.name}
+                </div>
+                <div class="detail-row">
+                    <strong>Account:</strong> ${provider.account_name}
+                </div>
+                <div class="detail-row">
+                    <strong>Status:</strong> 
+                    <span class="status-badge ${getConnectionStatus(provider.connection_status)}">
+                        ${provider.connection_status}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h3>Sync Configuration</h3>
+                <div class="detail-row">
+                    <strong>Auto-Sync:</strong> ${provider.auto_sync ? 'Enabled' : 'Disabled'}
+                </div>
+                ${provider.auto_sync ? `
+                    <div class="detail-row">
+                        <strong>Sync Interval:</strong> ${provider.sync_interval_hours} hours
+                    </div>
+                ` : ''}
+                <div class="detail-row">
+                    <strong>Last Sync:</strong> ${provider.last_sync ? formatDate(provider.last_sync) : 'Never'}
+                </div>
+                <div class="detail-row">
+                    <strong>Domain Count:</strong> ${provider.domain_count || 0}
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h3>System Information</h3>
+                <div class="detail-row">
+                    <strong>Connected:</strong> ${formatDate(provider.created_at)}
+                </div>
+                <div class="detail-row">
+                    <strong>Last Updated:</strong> ${formatDate(provider.updated_at)}
+                </div>
+                ${provider.sync_status ? `
+                    <div class="detail-row">
+                        <strong>Sync Status:</strong> ${provider.sync_status}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Provider Operations
+function onProviderSelectChange() {
+    const select = document.getElementById('providerSelect');
+    const container = document.getElementById('credentialsContainer');
+    
+    if (!select || !container) return;
+    
+    const selectedOption = select.options[select.selectedIndex];
+    if (!selectedOption || !selectedOption.value) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // Get required credentials for the selected provider
+    const requiredCredentials = JSON.parse(selectedOption.dataset.credentials || '["api_key"]');
+    
+    // Generate credential input fields
+    container.innerHTML = requiredCredentials.map(credential => {
+        const fieldName = credential.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const inputType = credential.toLowerCase().includes('secret') || credential.toLowerCase().includes('key') ? 'password' : 'text';
+        
+        return `
+            <div class="credentials-field">
+                <label class="form-label">${fieldName}</label>
+                <input type="${inputType}" id="credential_${credential}" class="form-control" 
+                       placeholder="Enter ${fieldName.toLowerCase()}" required>
+                <div class="credentials-help">
+                    ${getCredentialHelp(credential)}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getCredentialHelp(credential) {
+    const helpTexts = {
+        'api_key': 'Your API key from the provider\'s developer console',
+        'api_secret': 'Your API secret key (keep this secure)',
+        'username': 'Your account username',
+        'token': 'Access token from your provider account',
+        'access_key': 'Access key for API authentication',
+        'secret_key': 'Secret key for API authentication'
+    };
+    return helpTexts[credential] || 'Required credential for authentication';
+}
+
+async function testProviderConnection() {
+    const formData = getProviderFormData();
+    if (!formData) return;
+    
+    const testBtn = document.getElementById('testBtn');
+    const originalText = testBtn.innerHTML;
+    
+    try {
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        testBtn.disabled = true;
+        
+        const response = await apiCall('/api/v1/admin/providers/test', {
+            method: 'POST',
+            body: JSON.stringify({
+                provider: formData.provider,
+                credentials: formData.credentials
+            })
+        });
+        
+        if (response && response.success) {
+            showNotification('Connection test successful!', 'success');
+            testBtn.innerHTML = '<i class="fas fa-check"></i> Test Passed';
+            testBtn.className = 'btn btn-success';
+        } else {
+            showNotification(response?.message || 'Connection test failed', 'error');
+            testBtn.innerHTML = '<i class="fas fa-times"></i> Test Failed';
+            testBtn.className = 'btn btn-danger';
+        }
+    } catch (error) {
+        console.error('Connection test error:', error);
+        showNotification('Connection test failed', 'error');
+        testBtn.innerHTML = '<i class="fas fa-times"></i> Test Failed';
+        testBtn.className = 'btn btn-danger';
+    } finally {
+        testBtn.disabled = false;
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            testBtn.innerHTML = originalText;
+            testBtn.className = 'btn btn-primary';
+        }, 3000);
+    }
+}
+
+async function connectProvider() {
+    const formData = getProviderFormData();
+    if (!formData) return;
+    
+    const connectBtn = document.getElementById('connectBtn');
+    const originalText = connectBtn.innerHTML;
+    
+    try {
+        connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+        connectBtn.disabled = true;
+        
+        const response = await apiCall('/api/v1/admin/providers/connect', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response && response.success) {
+            showNotification('Provider connected successfully!', 'success');
+            hideAddProviderModal();
+            refreshProviders();
+        } else {
+            showNotification(response?.error || 'Failed to connect provider', 'error');
+        }
+    } catch (error) {
+        console.error('Connect provider error:', error);
+        showNotification('Failed to connect provider', 'error');
+    } finally {
+        connectBtn.innerHTML = originalText;
+        connectBtn.disabled = false;
+    }
+}
+
+function getProviderFormData() {
+    const provider = document.getElementById('providerSelect').value;
+    const name = document.getElementById('providerName').value;
+    const accountName = document.getElementById('accountName').value;
+    const testConnection = document.getElementById('testConnection').checked;
+    const autoSync = document.getElementById('enableAutoSync').checked;
+    const syncIntervalHours = parseInt(document.getElementById('syncIntervalHours').value);
+    const initialSync = document.getElementById('initialSync').checked;
+    
+    if (!provider || !name || !accountName) {
+        showNotification('Please fill in all required fields', 'error');
+        return null;
+    }
+    
+    // Collect credentials
+    const credentials = {};
+    const credentialInputs = document.querySelectorAll('#credentialsContainer input[id^="credential_"]');
+    
+    for (const input of credentialInputs) {
+        const credentialName = input.id.replace('credential_', '');
+        if (!input.value.trim()) {
+            showNotification(`Please enter ${credentialName.replace(/_/g, ' ')}`, 'error');
+            return null;
+        }
+        credentials[credentialName] = input.value.trim();
+    }
+    
+    return {
+        provider,
+        name,
+        account_name: accountName,
+        credentials,
+        test_connection: testConnection,
+        auto_sync: autoSync,
+        sync_interval_hours: autoSync ? syncIntervalHours : null,
+        initial_sync: initialSync
+    };
+}
+
+// Provider Operations
+async function refreshProviders() {
+    await loadProviders();
+}
+
+async function syncProviderById(providerId) {
+    try {
+        const response = await apiCall(`/api/v1/admin/providers/${providerId}/sync`, {
+            method: 'POST'
+        });
+        
+        if (response) {
+            showNotification('Sync initiated successfully', 'success');
+            setTimeout(refreshProviders, 2000); // Refresh after 2 seconds
+        }
+    } catch (error) {
+        console.error('Sync provider error:', error);
+        showNotification('Failed to sync provider', 'error');
+    }
+}
+
+async function syncAllProviders() {
+    try {
+        const response = await apiCall('/api/v1/admin/providers/sync-all', {
+            method: 'POST'
+        });
+        
+        if (response) {
+            showNotification('Sync all providers initiated', 'success');
+            setTimeout(refreshProviders, 2000);
+        }
+    } catch (error) {
+        console.error('Sync all providers error:', error);
+        showNotification('Failed to sync providers', 'error');
+    }
+}
+
+async function toggleAutoSync() {
+    try {
+        const statusData = await apiCall('/api/v1/admin/providers/auto-sync/status');
+        const isRunning = statusData?.running || false;
+        
+        const endpoint = isRunning ? '/api/v1/admin/providers/auto-sync/stop' : '/api/v1/admin/providers/auto-sync/start';
+        const response = await apiCall(endpoint, { method: 'POST' });
+        
+        if (response) {
+            showNotification(response.message, 'success');
+            setTimeout(() => loadProviders(), 1000);
+        }
+    } catch (error) {
+        console.error('Toggle auto-sync error:', error);
+        showNotification('Failed to toggle auto-sync', 'error');
+    }
+}
+
+async function removeProvider() {
+    if (!window.currentProviderId) return;
+    
+    if (!confirm('Are you sure you want to remove this provider? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/providers/connected/${window.currentProviderId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response) {
+            showNotification('Provider removed successfully', 'success');
+            hideProviderDetailsModal();
+            refreshProviders();
+        }
+    } catch (error) {
+        console.error('Remove provider error:', error);
+        showNotification('Failed to remove provider', 'error');
+    }
+}
+
+// Event listeners for modal interactions
+document.addEventListener('DOMContentLoaded', () => {
+    // Auto-sync settings toggle
+    const autoSyncCheckbox = document.getElementById('enableAutoSync');
+    const autoSyncSettings = document.getElementById('autoSyncSettings');
+    
+    if (autoSyncCheckbox && autoSyncSettings) {
+        autoSyncCheckbox.addEventListener('change', (e) => {
+            autoSyncSettings.style.display = e.target.checked ? 'block' : 'none';
+        });
+    }
+    
+    // Provider select change
+    const providerSelect = document.getElementById('providerSelect');
+    if (providerSelect) {
+        providerSelect.addEventListener('change', onProviderSelectChange);
+    }
+    
+    // Modal close on outside click
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            if (e.target.id === 'addProviderModal') {
+                hideAddProviderModal();
+            } else if (e.target.id === 'providerDetailsModal') {
+                hideProviderDetailsModal();
+            }
+        }
+    });
+});
+
+// Notification function
+function showNotification(message, type = 'info') {
+    // For now, use alert - you can replace this with a proper notification system
+    alert(message);
+}
+
+// ============================================================================
+// DNS MANAGEMENT FUNCTIONS
+// ============================================================================
+
+// State for DNS management
+let currentDomainId = null;
+let currentDNSRecords = [];
+let currentEditingRecord = null;
+
+// Load DNS management section
+async function loadDNSManagement() {
+    try {
+        // Load domains for selection
+        await loadDomainsForDNS();
+        
+        // Load DNS templates
+        await loadDNSTemplates();
+    } catch (error) {
+        console.error('Error loading DNS management:', error);
+        showNotification('Failed to load DNS management', 'error');
+    }
+}
+
+// Load domains for DNS management
+async function loadDomainsForDNS() {
+    try {
+        const data = await apiCall('/api/v1/domains');
+        if (data && data.domains) {
+            populateDomainsSelect(data.domains);
+        }
+    } catch (error) {
+        console.error('Error loading domains for DNS:', error);
+    }
+}
+
+function populateDomainsSelect(domains) {
+    const select = document.getElementById('dnsDomainsSelect');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Choose a domain to manage DNS records...</option>';
+    domains.forEach(domain => {
+        const option = document.createElement('option');
+        option.value = domain.id;
+        option.textContent = domain.name;
+        option.dataset.provider = domain.provider;
+        option.dataset.status = domain.status;
+        option.dataset.expires = domain.expires_at;
+        select.appendChild(option);
     });
 }
 
-function testProvider(id) {
-    app.showAlert(`Testing provider ${id}...`, 'info');
+// Load DNS records for selected domain
+async function loadDNSRecords() {
+    const select = document.getElementById('dnsDomainsSelect');
+    if (!select || !select.value) {
+        hideDNSRecordsCard();
+        return;
+    }
+
+    currentDomainId = select.value;
+    const selectedOption = select.options[select.selectedIndex];
+    
+    // Show domain info
+    showDomainInfo({
+        provider: selectedOption.dataset.provider,
+        status: selectedOption.dataset.status,
+        expires: selectedOption.dataset.expires,
+        nameServers: 'ns1.example.com, ns2.example.com' // This would come from API
+    });
+
+    try {
+        const records = await apiCall(`/api/v1/admin/domains/${currentDomainId}/dns`);
+        if (records) {
+            currentDNSRecords = records.records || [];
+            updateDNSRecordsTable(currentDNSRecords);
+            updateDNSAnalytics(currentDNSRecords);
+            showDNSRecordsCard();
+        }
+    } catch (error) {
+        console.error('Error loading DNS records:', error);
+        showNotification('Failed to load DNS records', 'error');
+    }
 }
 
-function syncProvider(id) {
-    app.showAlert(`Syncing provider ${id}...`, 'info');
+function showDomainInfo(info) {
+    document.getElementById('domainProvider').textContent = info.provider;
+    document.getElementById('domainStatus').textContent = info.status;
+    document.getElementById('domainStatus').className = `status-badge status-${info.status.toLowerCase()}`;
+    document.getElementById('domainExpiry').textContent = formatDate(info.expires);
+    document.getElementById('domainNameServers').textContent = info.nameServers;
+    document.getElementById('selectedDomainInfo').style.display = 'block';
 }
 
-function deleteProvider(id) {
-    if (confirm('Are you sure you want to delete this provider?')) {
-        app.apiCall('DELETE', `/admin/credentials/${id}`).then(() => {
-            app.showAlert('Provider deleted successfully', 'success');
-            app.loadProviders().then(() => app.renderProvidersTab());
+function showDNSRecordsCard() {
+    document.getElementById('dnsRecordsCard').style.display = 'block';
+    document.getElementById('dnsAnalyticsCard').style.display = 'block';
+}
+
+function hideDNSRecordsCard() {
+    document.getElementById('dnsRecordsCard').style.display = 'none';
+    document.getElementById('dnsAnalyticsCard').style.display = 'none';
+    document.getElementById('selectedDomainInfo').style.display = 'none';
+}
+
+function updateDNSRecordsTable(records) {
+    const tbody = document.querySelector('#dnsRecordsTable tbody');
+    if (!tbody) return;
+
+    if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">No DNS records found for this domain</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = records.map(record => `
+        <tr>
+            <td><span class="record-type-badge record-type-${record.type}">${record.type}</span></td>
+            <td><strong>${record.name}</strong></td>
+            <td><span class="record-value" title="${record.value}">${record.value}</span></td>
+            <td><span class="ttl-badge">${record.ttl}</span></td>
+            <td>${record.priority ? `<span class="record-priority">${record.priority}</span>` : '-'}</td>
+            <td>${formatDate(record.updated_at)}</td>
+            <td>
+                <div class="dns-record-actions">
+                    <button class="btn btn-secondary" onclick="editDNSRecord('${record.id}')" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteDNSRecord('${record.id}')" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateDNSAnalytics(records) {
+    // Calculate statistics
+    const totalRecords = records.length;
+    const recordTypes = [...new Set(records.map(r => r.type))].length;
+    const avgTTL = records.length > 0 ? Math.round(records.reduce((sum, r) => sum + r.ttl, 0) / records.length / 60) : 0;
+    const lastModified = records.length > 0 ? Math.max(...records.map(r => new Date(r.updated_at).getTime())) : null;
+
+    // Update display
+    document.getElementById('totalRecords').textContent = totalRecords;
+    document.getElementById('recordTypes').textContent = recordTypes;
+    document.getElementById('avgTTL').textContent = avgTTL;
+    document.getElementById('lastModified').textContent = lastModified ? formatDate(new Date(lastModified)) : '-';
+
+    // Update chart (basic implementation)
+    updateRecordTypesChart(records);
+}
+
+function updateRecordTypesChart(records) {
+    // This is a basic implementation - you could use Chart.js for better charts
+    const canvas = document.getElementById('recordTypesChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Count record types
+    const typeCounts = {};
+    records.forEach(record => {
+        typeCounts[record.type] = (typeCounts[record.type] || 0) + 1;
+    });
+
+    // Draw simple bar chart
+    const types = Object.keys(typeCounts);
+    const maxCount = Math.max(...Object.values(typeCounts));
+    const barWidth = canvas.width / types.length;
+    
+    ctx.fillStyle = '#1877f2';
+    ctx.font = '12px sans-serif';
+    
+    types.forEach((type, index) => {
+        const height = (typeCounts[type] / maxCount) * (canvas.height - 40);
+        const x = index * barWidth;
+        const y = canvas.height - height - 20;
+        
+        ctx.fillRect(x + 10, y, barWidth - 20, height);
+        ctx.fillStyle = '#1c1e21';
+        ctx.fillText(type, x + barWidth/2 - 10, canvas.height - 5);
+        ctx.fillText(typeCounts[type], x + barWidth/2 - 5, y - 5);
+        ctx.fillStyle = '#1877f2';
+    });
+}
+
+// DNS Record Modal Functions
+function showAddRecordModal() {
+    if (!currentDomainId) {
+        showNotification('Please select a domain first', 'error');
+        return;
+    }
+    
+    document.getElementById('addDNSRecordForm').reset();
+    document.getElementById('priorityWeightSection').style.display = 'none';
+    document.getElementById('recordPreview').style.display = 'none';
+    document.getElementById('addDNSRecordModal').style.display = 'flex';
+}
+
+function hideAddRecordModal() {
+    document.getElementById('addDNSRecordModal').style.display = 'none';
+}
+
+function updateRecordForm() {
+    const type = document.getElementById('recordType').value;
+    const prioritySection = document.getElementById('priorityWeightSection');
+    const weightGroup = document.getElementById('weightGroup');
+    const portGroup = document.getElementById('portGroup');
+    const helpText = document.getElementById('recordValueHelp');
+    
+    // Hide all additional fields first
+    prioritySection.style.display = 'none';
+    weightGroup.style.display = 'none';
+    portGroup.style.display = 'none';
+    
+    // Update help text and show relevant fields
+    switch (type) {
+        case 'A':
+            helpText.textContent = 'Enter IPv4 address (e.g., 192.168.1.1)';
+            break;
+        case 'AAAA':
+            helpText.textContent = 'Enter IPv6 address (e.g., 2001:db8::1)';
+            break;
+        case 'CNAME':
+            helpText.textContent = 'Enter target domain (e.g., example.com)';
+            break;
+        case 'MX':
+            helpText.textContent = 'Enter mail server hostname (e.g., mail.example.com)';
+            prioritySection.style.display = 'block';
+            break;
+        case 'TXT':
+            helpText.textContent = 'Enter text content (e.g., "v=spf1 include:_spf.example.com ~all")';
+            break;
+        case 'NS':
+            helpText.textContent = 'Enter nameserver hostname (e.g., ns1.example.com)';
+            break;
+        case 'SRV':
+            helpText.textContent = 'Enter target hostname (e.g., target.example.com)';
+            prioritySection.style.display = 'block';
+            weightGroup.style.display = 'block';
+            portGroup.style.display = 'block';
+            break;
+        default:
+            helpText.textContent = 'Enter the record value';
+    }
+}
+
+function previewDNSRecord() {
+    const formData = getDNSRecordFormData();
+    if (!formData) return;
+    
+    const preview = document.getElementById('recordPreview');
+    const content = document.getElementById('recordPreviewContent');
+    
+    let previewText = `${formData.name} ${formData.ttl} IN ${formData.type}`;
+    
+    if (formData.type === 'MX') {
+        previewText += ` ${formData.priority} ${formData.value}`;
+    } else if (formData.type === 'SRV') {
+        previewText += ` ${formData.priority} ${formData.weight} ${formData.port} ${formData.value}`;
+    } else {
+        previewText += ` ${formData.value}`;
+    }
+    
+    content.textContent = previewText;
+    preview.style.display = 'block';
+}
+
+async function saveDNSRecord() {
+    const formData = getDNSRecordFormData();
+    if (!formData) return;
+    
+    const saveBtn = document.querySelector('#addDNSRecordModal .btn-success');
+    const originalText = saveBtn.innerHTML;
+    
+    try {
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        saveBtn.disabled = true;
+        
+        const response = await apiCall(`/api/v1/admin/domains/${currentDomainId}/dns`, {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response) {
+            showNotification('DNS record created successfully', 'success');
+            hideAddRecordModal();
+            await loadDNSRecords(); // Refresh the records
+        }
+    } catch (error) {
+        console.error('Save DNS record error:', error);
+        showNotification('Failed to save DNS record', 'error');
+    } finally {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    }
+}
+
+function getDNSRecordFormData() {
+    const type = document.getElementById('recordType').value;
+    const name = document.getElementById('recordName').value;
+    const value = document.getElementById('recordValue').value;
+    const ttlSelect = document.getElementById('recordTTL').value;
+    const customTTL = document.getElementById('customTTL').value;
+    
+    if (!type || !name || !value) {
+        showNotification('Please fill in all required fields', 'error');
+        return null;
+    }
+    
+    const ttl = ttlSelect === 'custom' ? parseInt(customTTL) : parseInt(ttlSelect);
+    
+    const record = {
+        domain_id: currentDomainId,
+        type,
+        name,
+        value,
+        ttl
+    };
+    
+    // Add priority, weight, port for specific record types
+    if (type === 'MX' || type === 'SRV') {
+        const priority = document.getElementById('recordPriority').value;
+        if (!priority) {
+            showNotification('Priority is required for ' + type + ' records', 'error');
+            return null;
+        }
+        record.priority = parseInt(priority);
+    }
+    
+    if (type === 'SRV') {
+        const weight = document.getElementById('recordWeight').value;
+        const port = document.getElementById('recordPort').value;
+        if (!weight || !port) {
+            showNotification('Weight and Port are required for SRV records', 'error');
+            return null;
+        }
+        record.weight = parseInt(weight);
+        record.port = parseInt(port);
+    }
+    
+    return record;
+}
+
+// DNS Templates
+async function loadDNSTemplates() {
+    try {
+        const templates = await apiCall('/api/v1/admin/dns/templates');
+        if (templates) {
+            populateDNSTemplates(templates);
+        }
+    } catch (error) {
+        console.error('Error loading DNS templates:', error);
+    }
+}
+
+function populateDNSTemplates(templates) {
+    const grid = document.getElementById('dnsTemplatesGrid');
+    if (!grid) return;
+    
+    const templateDescriptions = {
+        'basic_website': 'Basic website setup with A and CNAME records',
+        'email_hosting': 'Email hosting configuration with MX and SPF records',
+        'cdn_setup': 'CDN configuration with multiple CNAME records'
+    };
+    
+    grid.innerHTML = Object.entries(templates).map(([name, records]) => `
+        <div class="template-card" onclick="applyDNSTemplate('${name}')">
+            <div class="template-title">${name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+            <div class="template-description">${templateDescriptions[name] || 'DNS template'}</div>
+            <div class="template-records">${records.length} records</div>
+        </div>
+    `).join('');
+}
+
+function showDNSTemplatesModal() {
+    document.getElementById('dnsTemplatesModal').style.display = 'flex';
+}
+
+function hideDNSTemplatesModal() {
+    document.getElementById('dnsTemplatesModal').style.display = 'none';
+}
+
+async function applyDNSTemplate(templateName) {
+    if (!currentDomainId) {
+        showNotification('Please select a domain first', 'error');
+        return;
+    }
+    
+    if (!confirm(`Apply ${templateName} template? This will add multiple DNS records.`)) {
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/domains/${currentDomainId}/dns/template`, {
+            method: 'POST',
+            body: JSON.stringify({ template: templateName })
+        });
+        
+        if (response) {
+            showNotification('DNS template applied successfully', 'success');
+            hideDNSTemplatesModal();
+            await loadDNSRecords();
+        }
+    } catch (error) {
+        console.error('Apply template error:', error);
+        showNotification('Failed to apply DNS template', 'error');
+    }
+}
+
+// DNS Record Management
+async function editDNSRecord(recordId) {
+    const record = currentDNSRecords.find(r => r.id === recordId);
+    if (!record) return;
+    
+    currentEditingRecord = record;
+    
+    // Populate edit form
+    document.getElementById('editRecordType').value = record.type;
+    document.getElementById('editRecordName').value = record.name;
+    document.getElementById('editRecordValue').value = record.value;
+    document.getElementById('editRecordTTL').value = record.ttl;
+    
+    if (record.priority) {
+        document.getElementById('editRecordPriority').value = record.priority;
+    }
+    if (record.weight) {
+        document.getElementById('editRecordWeight').value = record.weight;
+    }
+    if (record.port) {
+        document.getElementById('editRecordPort').value = record.port;
+    }
+    
+    updateEditRecordForm();
+    document.getElementById('editDNSRecordModal').style.display = 'flex';
+}
+
+function hideEditRecordModal() {
+    document.getElementById('editDNSRecordModal').style.display = 'none';
+    currentEditingRecord = null;
+}
+
+function updateEditRecordForm() {
+    const type = document.getElementById('editRecordType').value;
+    const prioritySection = document.getElementById('editPriorityWeightSection');
+    const weightGroup = document.getElementById('editWeightGroup');
+    const portGroup = document.getElementById('editPortGroup');
+    
+    prioritySection.style.display = 'none';
+    weightGroup.style.display = 'none';
+    portGroup.style.display = 'none';
+    
+    if (type === 'MX' || type === 'SRV') {
+        prioritySection.style.display = 'block';
+    }
+    if (type === 'SRV') {
+        weightGroup.style.display = 'block';
+        portGroup.style.display = 'block';
+    }
+}
+
+async function updateDNSRecord() {
+    if (!currentEditingRecord) return;
+    
+    const formData = {
+        type: document.getElementById('editRecordType').value,
+        name: document.getElementById('editRecordName').value,
+        value: document.getElementById('editRecordValue').value,
+        ttl: parseInt(document.getElementById('editRecordTTL').value)
+    };
+    
+    if (formData.type === 'MX' || formData.type === 'SRV') {
+        formData.priority = parseInt(document.getElementById('editRecordPriority').value);
+    }
+    if (formData.type === 'SRV') {
+        formData.weight = parseInt(document.getElementById('editRecordWeight').value);
+        formData.port = parseInt(document.getElementById('editRecordPort').value);
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/dns/${currentEditingRecord.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response) {
+            showNotification('DNS record updated successfully', 'success');
+            hideEditRecordModal();
+            await loadDNSRecords();
+        }
+    } catch (error) {
+        console.error('Update DNS record error:', error);
+        showNotification('Failed to update DNS record', 'error');
+    }
+}
+
+async function deleteDNSRecord(recordId) {
+    if (!confirm('Are you sure you want to delete this DNS record?')) {
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/dns/${recordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response) {
+            showNotification('DNS record deleted successfully', 'success');
+            await loadDNSRecords();
+        }
+    } catch (error) {
+        console.error('Delete DNS record error:', error);
+        showNotification('Failed to delete DNS record', 'error');
+    }
+}
+
+// DNS Filtering
+function filterDNSRecords() {
+    const typeFilter = document.getElementById('recordTypeFilter').value;
+    const nameFilter = document.getElementById('nameFilter').value.toLowerCase();
+    const ttlFilter = document.getElementById('ttlFilter').value;
+    
+    let filteredRecords = currentDNSRecords;
+    
+    if (typeFilter) {
+        filteredRecords = filteredRecords.filter(record => record.type === typeFilter);
+    }
+    
+    if (nameFilter) {
+        filteredRecords = filteredRecords.filter(record => 
+            record.name.toLowerCase().includes(nameFilter) || 
+            record.value.toLowerCase().includes(nameFilter)
+        );
+    }
+    
+    if (ttlFilter) {
+        filteredRecords = filteredRecords.filter(record => record.ttl == ttlFilter);
+    }
+    
+    updateDNSRecordsTable(filteredRecords);
+}
+
+// DNS Import/Export
+function showImportDNSModal() {
+    if (!currentDomainId) {
+        showNotification('Please select a domain first', 'error');
+        return;
+    }
+    document.getElementById('importDNSModal').style.display = 'flex';
+}
+
+function hideImportDNSModal() {
+    document.getElementById('importDNSModal').style.display = 'none';
+}
+
+async function importDNSRecords() {
+    const format = document.getElementById('importFormat').value;
+    const data = document.getElementById('importData').value;
+    const replace = document.getElementById('replaceRecords').checked;
+    
+    if (!data.trim()) {
+        showNotification('Please enter DNS records data', 'error');
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/domains/${currentDomainId}/dns/import`, {
+            method: 'POST',
+            body: JSON.stringify({
+                format,
+                data,
+                replace
+            })
+        });
+        
+        if (response) {
+            showNotification('DNS records imported successfully', 'success');
+            hideImportDNSModal();
+            await loadDNSRecords();
+        }
+    } catch (error) {
+        console.error('Import DNS records error:', error);
+        showNotification('Failed to import DNS records', 'error');
+    }
+}
+
+async function exportDNSRecords() {
+    if (!currentDomainId) {
+        showNotification('Please select a domain first', 'error');
+        return;
+    }
+    
+    try {
+        const response = await apiCall(`/api/v1/admin/domains/${currentDomainId}/dns/export?format=bind`);
+        if (response && response.data) {
+            // Create and download file
+            const blob = new Blob([response.data], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${document.getElementById('dnsDomainsSelect').selectedOptions[0].text}.zone`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('DNS records exported successfully', 'success');
+        }
+    } catch (error) {
+        console.error('Export DNS records error:', error);
+        showNotification('Failed to export DNS records', 'error');
+    }
+}
+
+function refreshDNSRecords() {
+    if (currentDomainId) {
+        loadDNSRecords();
+    }
+}
+
+// Event listeners for DNS management
+document.addEventListener('DOMContentLoaded', () => {
+    // TTL selector change
+    const ttlSelect = document.getElementById('recordTTL');
+    const customTTLGroup = document.getElementById('customTTLGroup');
+    
+    if (ttlSelect && customTTLGroup) {
+        ttlSelect.addEventListener('change', (e) => {
+            customTTLGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
         });
     }
-}
+});
 
-function analyzeDomain(id) {
-    app.showAlert(`Domain analysis for ${id} coming soon`, 'info');
-}
+// Global functions for button clicks
+window.viewDomain = viewDomain;
+window.editDomain = editDomain;
+window.deleteDomain = deleteDomain;
+window.logout = logout;
+window.showAddProviderModal = showAddProviderModal;
+window.hideAddProviderModal = hideAddProviderModal;
+window.showProviderDetails = showProviderDetails;
+window.hideProviderDetailsModal = hideProviderDetailsModal;
+window.testProviderConnection = testProviderConnection;
+window.connectProvider = connectProvider;
+window.refreshProviders = refreshProviders;
+window.syncProviderById = syncProviderById;
+window.syncAllProviders = syncAllProviders;
+window.toggleAutoSync = toggleAutoSync;
+window.removeProvider = removeProvider;
+window.editProvider = () => console.log('Edit provider - to be implemented');
+window.syncProvider = () => syncProviderById(window.currentProviderId);
 
-function editNotificationRule(index) {
-    app.showAlert(`Edit notification rule ${index} coming soon`, 'info');
-}
-
-function deleteNotificationRule(index) {
-    if (confirm('Are you sure you want to delete this notification rule?')) {
-        app.showAlert('Notification rule deleted', 'success');
-    }
-}
-
-// Initialize the enhanced admin app
-const app = new EnhancedAdminApp();
+// DNS Management global functions
+window.loadDNSRecords = loadDNSRecords;
+window.showAddRecordModal = showAddRecordModal;
+window.hideAddRecordModal = hideAddRecordModal;
+window.updateRecordForm = updateRecordForm;
+window.previewDNSRecord = previewDNSRecord;
+window.saveDNSRecord = saveDNSRecord;
+window.showDNSTemplatesModal = showDNSTemplatesModal;
+window.hideDNSTemplatesModal = hideDNSTemplatesModal;
+window.applyDNSTemplate = applyDNSTemplate;
+window.editDNSRecord = editDNSRecord;
+window.hideEditRecordModal = hideEditRecordModal;
+window.updateEditRecordForm = updateEditRecordForm;
+window.updateDNSRecord = updateDNSRecord;
+window.deleteDNSRecord = deleteDNSRecord;
+window.filterDNSRecords = filterDNSRecords;
+window.showImportDNSModal = showImportDNSModal;
+window.hideImportDNSModal = hideImportDNSModal;
+window.importDNSRecords = importDNSRecords;
+window.exportDNSRecords = exportDNSRecords;
+window.refreshDNSRecords = refreshDNSRecords;
