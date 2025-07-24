@@ -656,3 +656,182 @@ func (ps *ProviderService) GetAutoSyncStatus() map[string]interface{} {
 func generateID() string {
 	return fmt.Sprintf("provider_%d", time.Now().UnixNano())
 }
+
+// SearchDomains searches for domain availability across multiple providers
+func (ps *ProviderService) SearchDomains(request types.DomainSearchRequest) ([]types.DomainSearchResult, error) {
+	results := make([]types.DomainSearchResult, 0, len(request.Domains))
+	
+	for _, domain := range request.Domains {
+		result := types.DomainSearchResult{
+			Domain:    domain,
+			Available: false,
+			Providers: []types.DomainProviderOption{},
+		}
+		
+		// Check domain availability across connected providers
+		ps.mu.RLock()
+		connectedProviders := make([]*ConnectedProvider, 0, len(ps.connectedProviders))
+		for _, provider := range ps.connectedProviders {
+			if provider.Enabled {
+				connectedProviders = append(connectedProviders, provider)
+			}
+		}
+		ps.mu.RUnlock()
+		
+		// For now, simulate domain search results
+		// In a real implementation, you would call each provider's API
+		if len(domain) > 0 {
+			result.Available = true
+			result.Premium = false
+			result.Pricing = types.DomainPricing{
+				PurchasePrice: 12.99,
+				RenewalPrice:  14.99,
+				Currency:      "USD",
+				Period:        1,
+			}
+			
+			// Add provider options
+			for _, provider := range connectedProviders {
+				option := types.DomainProviderOption{
+					ProviderID:   provider.ID,
+					ProviderName: provider.Provider,
+					DisplayName:  provider.Name,
+					Pricing:      result.Pricing,
+					Supported:    true,
+					Recommended:  provider.Provider == "godaddy", // Example recommendation logic
+				}
+				result.Providers = append(result.Providers, option)
+			}
+			
+			// If no connected providers, add default options
+			if len(result.Providers) == 0 {
+				for providerName, providerInfo := range ps.supportedProviders {
+					option := types.DomainProviderOption{
+						ProviderID:   providerName,
+						ProviderName: providerName,
+						DisplayName:  providerInfo.DisplayName,
+						Pricing:      result.Pricing,
+						Supported:    false,
+						Recommended:  providerName == "godaddy",
+					}
+					result.Providers = append(result.Providers, option)
+				}
+			}
+		} else {
+			result.Message = "Invalid domain name"
+		}
+		
+		results = append(results, result)
+	}
+	
+	return results, nil
+}
+
+// PurchaseDomains handles domain purchase requests
+func (ps *ProviderService) PurchaseDomains(request types.DomainPurchaseRequest) (*types.DomainPurchaseResponse, error) {
+	ps.mu.RLock()
+	provider, exists := ps.connectedProviders[request.ProviderID]
+	ps.mu.RUnlock()
+	
+	if !exists {
+		return &types.DomainPurchaseResponse{
+			Success: false,
+			Message: "Provider not found or not connected",
+		}, nil
+	}
+	
+	if !provider.Enabled {
+		return &types.DomainPurchaseResponse{
+			Success: false,
+			Message: "Provider is disabled",
+		}, nil
+	}
+	
+	// For now, simulate domain purchase
+	// In a real implementation, you would call the provider's API
+	response := &types.DomainPurchaseResponse{
+		Success:          true,
+		Message:          "Domain purchase initiated successfully",
+		PurchasedDomains: []types.PurchasedDomainInfo{},
+		FailedDomains:    []types.FailedDomainPurchase{},
+		TotalCost:        0,
+		Currency:         "USD",
+		TransactionID:    fmt.Sprintf("tx_%d", time.Now().UnixNano()),
+	}
+	
+	for _, domainItem := range request.Domains {
+		// Simulate successful purchase
+		cost := 12.99 * float64(domainItem.Period)
+		purchasedDomain := types.PurchasedDomainInfo{
+			Domain:    domainItem.Domain,
+			DomainID:  fmt.Sprintf("domain_%d", time.Now().UnixNano()),
+			ExpiresAt: time.Now().AddDate(domainItem.Period, 0, 0),
+			Cost:      cost,
+			Period:    domainItem.Period,
+		}
+		
+		response.PurchasedDomains = append(response.PurchasedDomains, purchasedDomain)
+		response.TotalCost += cost
+	}
+	
+	return response, nil
+}
+
+// GetPurchaseProviders returns available providers for domain purchase
+func (ps *ProviderService) GetPurchaseProviders() ([]types.DomainProviderOption, error) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	
+	providers := make([]types.DomainProviderOption, 0)
+	
+	// Add connected providers first
+	for _, provider := range ps.connectedProviders {
+		if provider.Enabled {
+			option := types.DomainProviderOption{
+				ProviderID:   provider.ID,
+				ProviderName: provider.Provider,
+				DisplayName:  provider.Name,
+				Pricing: types.DomainPricing{
+					PurchasePrice: 12.99,
+					RenewalPrice:  14.99,
+					Currency:      "USD",
+					Period:        1,
+				},
+				Supported:   true,
+				Recommended: provider.Provider == "godaddy",
+			}
+			providers = append(providers, option)
+		}
+	}
+	
+	// Add supported but not connected providers
+	for providerName, providerInfo := range ps.supportedProviders {
+		// Check if already connected
+		alreadyConnected := false
+		for _, connectedProvider := range ps.connectedProviders {
+			if connectedProvider.Provider == providerName && connectedProvider.Enabled {
+				alreadyConnected = true
+				break
+			}
+		}
+		
+		if !alreadyConnected {
+			option := types.DomainProviderOption{
+				ProviderID:   providerName,
+				ProviderName: providerName,
+				DisplayName:  providerInfo.DisplayName,
+				Pricing: types.DomainPricing{
+					PurchasePrice: 12.99,
+					RenewalPrice:  14.99,
+					Currency:      "USD",
+					Period:        1,
+				},
+				Supported:   false,
+				Recommended: providerName == "godaddy",
+			}
+			providers = append(providers, option)
+		}
+	}
+	
+	return providers, nil
+}

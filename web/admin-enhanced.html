@@ -598,6 +598,469 @@
             flex-direction: column;
         }
 
+        /* Domain Search Styles */
+        .domain-search-container {
+            padding: 16px 0;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .search-input-group textarea {
+            flex: 1;
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .search-input-group button {
+            height: fit-content;
+            padding: 12px 20px;
+            white-space: nowrap;
+        }
+
+        .search-results {
+            margin-top: 24px;
+            border-top: 1px solid #dadde1;
+            padding-top: 16px;
+        }
+
+        .search-results h4 {
+            margin-bottom: 16px;
+            color: #1c1e21;
+            font-weight: 600;
+        }
+
+        .domain-result {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .domain-result:hover {
+            border-color: #1877f2;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .domain-result.available {
+            border-left: 4px solid #42b883;
+        }
+
+        .domain-result.taken {
+            border-left: 4px solid #e74c3c;
+            opacity: 0.7;
+        }
+
+        .domain-result.premium {
+            border-left: 4px solid #f39c12;
+        }
+
+        .domain-info {
+            flex: 1;
+        }
+
+        .domain-name {
+            font-weight: 600;
+            color: #1c1e21;
+            font-size: 16px;
+        }
+
+        .domain-status {
+            font-size: 14px;
+            color: #65676b;
+            margin-top: 2px;
+        }
+
+        .domain-pricing {
+            text-align: right;
+            margin-right: 12px;
+        }
+
+        .price-main {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .price-renewal {
+            font-size: 12px;
+            color: #65676b;
+        }
+
+        .domain-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Domain Search Results Styles */
+        .results-section {
+            margin-bottom: 24px;
+        }
+
+        .results-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dadde1;
+        }
+
+        .results-title.available {
+            color: #42b883;
+        }
+
+        .results-title.unavailable {
+            color: #e74c3c;
+        }
+
+        .domain-result-card {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .domain-result-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1877f2;
+        }
+
+        .domain-result-card.available {
+            border-left: 4px solid #42b883;
+        }
+
+        .domain-result-card.unavailable {
+            border-left: 4px solid #e74c3c;
+            opacity: 0.8;
+        }
+
+        .domain-info {
+            padding: 16px;
+        }
+
+        .domain-name {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .domain-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .availability-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .availability-badge.available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .availability-badge.unavailable {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .availability-badge.purchased {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .premium-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            background: #fff3cd;
+            color: #856404;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .pricing-info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .price-details {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .purchase-price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1c1e21;
+        }
+
+        .price-period {
+            font-size: 14px;
+            color: #65676b;
+        }
+
+        .renewal-price {
+            font-size: 12px;
+            color: #65676b;
+            margin-left: auto;
+        }
+
+        .coupon-discount {
+            font-size: 12px;
+            color: #42b883;
+            font-weight: 500;
+        }
+
+        .provider-options {
+            border-top: 1px solid #dadde1;
+            padding-top: 16px;
+        }
+
+        .provider-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .provider-option:hover {
+            border-color: #1877f2;
+            background: #f0f8ff;
+        }
+
+        .provider-option.recommended {
+            border-color: #42b883;
+            background: #f0fff4;
+        }
+
+        .provider-option.unsupported {
+            opacity: 0.6;
+        }
+
+        .provider-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .provider-name {
+            font-weight: 500;
+            color: #1c1e21;
+        }
+
+        .recommended-badge {
+            background: #d4edda;
+            color: #155724;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .unsupported-badge {
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .provider-pricing {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .provider-price {
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .result-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #65676b;
+            font-size: 16px;
+        }
+
+        /* Website Status Styles */
+        .website-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .website-status.status-200 {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .website-status.status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .website-status.status-unknown {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .website-status.status-checking {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .domain-status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .domain-status-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .domain-status-badge.expired {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .domain-status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* Bulk Actions Styles */
+        .bulk-actions {
+            padding: 16px;
+            background: #f8f9fa;
+            border-top: 1px solid #dadde1;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .bulk-actions::before {
+            content: "Selected items:";
+            font-size: 14px;
+            color: #65676b;
+            font-weight: 500;
+        }
+
+        /* Provider Selection Styles */
+        .provider-selection {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dadde1;
+        }
+
+        .provider-selection h5 {
+            margin-bottom: 12px;
+            color: #1c1e21;
+            font-weight: 600;
+        }
+
+        .provider-options {
+            display: grid;
+            gap: 8px;
+        }
+
+        .provider-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .provider-option:hover {
+            border-color: #1877f2;
+            background: #f0f8ff;
+        }
+
+        .provider-option.selected {
+            border-color: #1877f2;
+            background: #e7f3ff;
+        }
+
+        .provider-option-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .provider-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #1877f2;
+        }
+
         .modal-header {
             display: flex;
             align-items: center;
@@ -1728,19 +2191,77 @@
             <div class="page-header">
                 <h1 class="page-title">Domain Management</h1>
                 <p class="page-subtitle">Manage your domain portfolio</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showDomainSearchModal()">
+                        <i class="fas fa-shopping-cart"></i>
+                        Buy Domains
+                    </button>
+                    <button class="btn btn-secondary" onclick="bulkStatusCheck()">
+                        <i class="fas fa-heartbeat"></i>
+                        Check All Status
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshDomains()">
+                        <i class="fas fa-sync"></i>
+                        Refresh
+                    </button>
+                </div>
             </div>
 
+            <!-- Domain Search & Purchase -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">All Domains</h2>
+                    <h2 class="card-title">Domain Search & Purchase</h2>
+                </div>
+                <div class="card-content">
+                    <div class="domain-search-container">
+                        <div class="search-form">
+                            <div class="form-group">
+                                <label class="form-label">Domain Search</label>
+                                <div class="search-input-group">
+                                    <textarea 
+                                        id="domainSearchInput" 
+                                        class="form-control" 
+                                        placeholder="Enter domain names to search (one per line or comma-separated):&#10;example1.com&#10;example2.net&#10;mybrand.org"
+                                        rows="4"
+                                    ></textarea>
+                                    <button class="btn btn-primary" onclick="searchDomains()">
+                                        <i class="fas fa-search"></i>
+                                        Search Availability
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Coupon Code (Optional)</label>
+                                <input type="text" id="couponCode" class="form-control" placeholder="Enter coupon code for discounts">
+                            </div>
+                        </div>
+                        <div id="searchResults" class="search-results" style="display: none;">
+                            <h4>Search Results</h4>
+                            <div id="searchResultsContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Owned Domains -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Your Domains</h2>
+                    <div class="card-actions">
+                        <input type="text" id="domainsSearchFilter" class="form-control" placeholder="Search domains..." onkeyup="filterDomains()">
+                    </div>
                 </div>
                 <div class="card-content">
                     <div class="table-container">
                         <table id="allDomainsTable">
                             <thead>
                                 <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAllDomains" onchange="toggleSelectAllDomains()">
+                                    </th>
                                     <th>Domain</th>
-                                    <th>Status</th>
+                                    <th>Website Status</th>
+                                    <th>Domain Status</th>
                                     <th>Expires</th>
                                     <th>Provider</th>
                                     <th>Category</th>
@@ -1749,13 +2270,27 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="6" class="loading">
+                                    <td colspan="8" class="loading">
                                         <i class="fas fa-spinner"></i>
                                         Loading domains...
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="bulk-actions" style="display: none;">
+                        <button class="btn btn-secondary" onclick="bulkStatusCheck()">
+                            <i class="fas fa-heartbeat"></i>
+                            Check Status
+                        </button>
+                        <button class="btn btn-secondary" onclick="bulkCategorize()">
+                            <i class="fas fa-tags"></i>
+                            Categorize
+                        </button>
+                        <button class="btn btn-warning" onclick="bulkRenew()">
+                            <i class="fas fa-redo"></i>
+                            Renew
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2686,6 +3221,87 @@ mysite.org,CNAME,blog,myblog.wordpress.com,1800,,</pre>
                 <button type="button" class="btn btn-danger" onclick="executeBulkChanges()" id="executeBulkBtn" disabled>
                     <i class="fas fa-exclamation-triangle"></i>
                     Execute Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Domain Search Modal -->
+    <div id="domainSearchModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Domain Search & Purchase</h2>
+                <button class="modal-close" onclick="hideDomainSearchModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="domain-search-container">
+                    <div class="search-form">
+                        <div class="form-group">
+                            <label class="form-label">Domain Search</label>
+                            <div class="search-input-group">
+                                <textarea 
+                                    id="modalDomainSearchInput" 
+                                    class="form-control" 
+                                    placeholder="Enter domain names to search (one per line or comma-separated):"
+                                    rows="3"
+                                ></textarea>
+                                <button class="btn btn-primary" onclick="searchDomainsModal()">
+                                    <i class="fas fa-search"></i>
+                                    Search
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Coupon Code (Optional)</label>
+                            <input type="text" id="modalCouponCode" class="form-control" placeholder="Enter coupon code">
+                        </div>
+                    </div>
+                    
+                    <div id="modalSearchResults" class="search-results" style="display: none;">
+                        <h4>Search Results</h4>
+                        <div id="modalSearchResultsContainer"></div>
+                        
+                        <div id="providerSelection" class="provider-selection" style="display: none;">
+                            <h5>Select Provider for Purchase</h5>
+                            <div id="providerOptions" class="provider-options">
+                                <!-- Provider options will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideDomainSearchModal()">Close</button>
+                <button type="button" class="btn btn-success" onclick="purchaseSelectedDomains()" id="purchaseBtn" style="display: none;">
+                    <i class="fas fa-shopping-cart"></i>
+                    Purchase Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Website Status Details Modal -->
+    <div id="websiteStatusModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Website Status Details</h2>
+                <button class="modal-close" onclick="hideWebsiteStatusModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div id="websiteStatusContent">
+                    <!-- Status details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideWebsiteStatusModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="recheckWebsiteStatus()" id="recheckBtn">
+                    <i class="fas fa-sync"></i>
+                    Recheck Status
                 </button>
             </div>
         </div>

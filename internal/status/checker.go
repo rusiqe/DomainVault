@@ -224,3 +224,143 @@ func getStatusGroup(statusCode int) string {
 		return "unknown"
 	}
 }
+
+// CheckWebsiteStatus checks the website status for multiple domains
+func (sc *StatusChecker) CheckWebsiteStatus(request types.WebsiteStatusRequest) ([]types.WebsiteStatusResult, error) {
+	results := make([]types.WebsiteStatusResult, 0, len(request.Domains))
+	
+	for _, domainName := range request.Domains {
+		result := sc.checkSingleWebsiteStatus(domainName)
+		results = append(results, result)
+		
+		// Small delay between requests to be respectful
+		time.Sleep(100 * time.Millisecond)
+	}
+	
+	return results, nil
+}
+
+// BulkCheckWebsiteStatus checks website status for multiple domains concurrently
+func (sc *StatusChecker) BulkCheckWebsiteStatus(request types.WebsiteStatusRequest) ([]types.WebsiteStatusResult, error) {
+	results := make([]types.WebsiteStatusResult, len(request.Domains))
+	type result struct {
+		index int
+		status types.WebsiteStatusResult
+	}
+	
+	resultChan := make(chan result, len(request.Domains))
+	
+	// Start goroutines for each domain check
+	for i, domainName := range request.Domains {
+		go func(index int, domain string) {
+			status := sc.checkSingleWebsiteStatus(domain)
+			resultChan <- result{index: index, status: status}
+		}(i, domainName)
+	}
+	
+	// Collect results
+	for i := 0; i < len(request.Domains); i++ {
+		result := <-resultChan
+		results[result.index] = result.status
+	}
+	
+	return results, nil
+}
+
+// checkSingleWebsiteStatus checks the status of a single website
+func (sc *StatusChecker) checkSingleWebsiteStatus(domainName string) types.WebsiteStatusResult {
+	now := time.Now()
+	result := types.WebsiteStatusResult{
+		Domain:      domainName,
+		LastChecked: now,
+	}
+	
+	// Try HTTP first
+	httpResult := sc.performStatusCheck(fmt.Sprintf("http://%s", domainName))
+	result.HTTPStatus = httpResult.statusCode
+	result.StatusMessage = httpResult.message
+	result.ResponseTime = httpResult.responseTime
+	result.RedirectURL = httpResult.redirectURL
+	result.Error = httpResult.error
+	
+	// If HTTP fails or returns an error, try HTTPS
+	if httpResult.statusCode == 0 || httpResult.statusCode >= 400 {
+		httpsResult := sc.performStatusCheck(fmt.Sprintf("https://%s", domainName))
+		
+		// Use HTTPS result if it's better
+		if httpsResult.statusCode > 0 && httpsResult.statusCode < httpResult.statusCode {
+			result.HTTPStatus = httpsResult.statusCode
+			result.StatusMessage = httpsResult.message + " (HTTPS)"
+			result.ResponseTime = httpsResult.responseTime
+			result.RedirectURL = httpsResult.redirectURL
+			result.Error = httpsResult.error
+			result.SSLStatus = "valid"
+		}
+	} else if httpResult.statusCode >= 200 && httpResult.statusCode < 300 {
+		// Also check HTTPS to see if SSL is available
+		httpsResult := sc.performStatusCheck(fmt.Sprintf("https://%s", domainName))
+		if httpsResult.statusCode >= 200 && httpsResult.statusCode < 300 {
+			result.SSLStatus = "valid"
+		} else {
+			result.SSLStatus = "unavailable"
+		}
+	}
+	
+	return result
+}
+
+// statusCheckResult represents the result of a single status check
+type statusCheckResult struct {
+	statusCode   int
+	message      string
+	responseTime int64
+	redirectURL  string
+	error        string
+}
+
+// performStatusCheck performs the actual HTTP check
+func (sc *StatusChecker) performStatusCheck(url string) statusCheckResult {
+	start := time.Now()
+	result := statusCheckResult{}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), sc.timeout)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		result.error = fmt.Sprintf("Failed to create request: %v", err)
+		result.message = "Request creation failed"
+		return result
+	}
+	
+	req.Header.Set("User-Agent", "DomainVault/1.0 Website Status Checker")
+	
+	resp, err := sc.client.Do(req)
+	responseTime := time.Since(start).Milliseconds()
+	result.responseTime = responseTime
+	
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			result.statusCode = 408
+			result.message = "Request timeout"
+		} else {
+			result.statusCode = 0
+			result.message = "Connection failed"
+			result.error = err.Error()
+		}
+		return result
+	}
+	defer resp.Body.Close()
+	
+	result.statusCode = resp.StatusCode
+	result.message = getStatusMessage(resp.StatusCode)
+	
+	// Check for redirects
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		if location := resp.Header.Get("Location"); location != "" {
+			result.redirectURL = location
+		}
+	}
+	
+	return result
+}

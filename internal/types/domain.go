@@ -27,6 +27,13 @@ type Domain struct {
 	LastStatusCheck *time.Time `json:"last_status_check,omitempty" db:"last_status_check"` // When status was last checked
 	StatusMessage   *string    `json:"status_message,omitempty" db:"status_message"`     // Human-readable status message
 	
+	// UptimeRobot monitoring
+	UptimeRobotMonitorID *int     `json:"uptime_robot_monitor_id,omitempty" db:"uptime_robot_monitor_id"` // UptimeRobot monitor ID
+	UptimeRatio          *float64 `json:"uptime_ratio,omitempty" db:"uptime_ratio"`                       // Uptime percentage (0-100)
+	ResponseTime         *int     `json:"response_time,omitempty" db:"response_time"`                     // Average response time in ms
+	MonitorStatus        *string  `json:"monitor_status,omitempty" db:"monitor_status"`                   // up, down, paused, seems_down
+	LastDowntime         *time.Time `json:"last_downtime,omitempty" db:"last_downtime"`                   // Last recorded downtime
+	
 	// DNS Records (populated on demand)
 	DNSRecords []DNSRecord `json:"dns_records,omitempty" db:"-"`
 
@@ -180,6 +187,100 @@ type ProviderConnectionResponse struct {
 	SyncStarted  bool   `json:"sync_started,omitempty"`  // Whether initial sync was started
 }
 
+// DomainSearchRequest represents a domain availability search request
+type DomainSearchRequest struct {
+	Domains    []string `json:"domains" binding:"required"`
+	CouponCode string   `json:"coupon_code,omitempty"`
+}
+
+// DomainSearchResult represents the result of a domain search
+type DomainSearchResult struct {
+	Domain     string                 `json:"domain"`
+	Available  bool                   `json:"available"`
+	Premium    bool                   `json:"premium,omitempty"`
+	Pricing    DomainPricing          `json:"pricing,omitempty"`
+	Providers  []DomainProviderOption `json:"providers,omitempty"`
+	Message    string                 `json:"message,omitempty"`
+}
+
+// DomainPricing represents pricing information for a domain
+type DomainPricing struct {
+	PurchasePrice float64 `json:"purchase_price"`
+	RenewalPrice  float64 `json:"renewal_price"`
+	Currency      string  `json:"currency"`
+	Period        int     `json:"period"`        // Years
+	CouponDiscount float64 `json:"coupon_discount,omitempty"`
+}
+
+// DomainProviderOption represents a provider option for domain purchase
+type DomainProviderOption struct {
+	ProviderID   string        `json:"provider_id"`
+	ProviderName string        `json:"provider_name"`
+	DisplayName  string        `json:"display_name"`
+	Pricing      DomainPricing `json:"pricing"`
+	Supported    bool          `json:"supported"`    // Whether we have credentials for this provider
+	Recommended  bool          `json:"recommended"`  // Whether this is the recommended option
+}
+
+// DomainPurchaseRequest represents a domain purchase request
+type DomainPurchaseRequest struct {
+	Domains     []DomainPurchaseItem `json:"domains" binding:"required"`
+	ProviderID  string               `json:"provider_id" binding:"required"`
+	CouponCode  string               `json:"coupon_code,omitempty"`
+	AutoRenew   bool                 `json:"auto_renew"`
+	CategoryID  *string              `json:"category_id,omitempty"`
+	ProjectID   *string              `json:"project_id,omitempty"`
+}
+
+// DomainPurchaseItem represents a single domain to purchase
+type DomainPurchaseItem struct {
+	Domain string `json:"domain" binding:"required"`
+	Period int    `json:"period"`  // Years to register
+}
+
+// DomainPurchaseResponse represents the result of a domain purchase
+type DomainPurchaseResponse struct {
+	Success        bool                    `json:"success"`
+	Message        string                  `json:"message"`
+	PurchasedDomains []PurchasedDomainInfo `json:"purchased_domains,omitempty"`
+	FailedDomains    []FailedDomainPurchase `json:"failed_domains,omitempty"`
+	TotalCost      float64                 `json:"total_cost,omitempty"`
+	Currency       string                  `json:"currency,omitempty"`
+	TransactionID  string                  `json:"transaction_id,omitempty"`
+}
+
+// PurchasedDomainInfo represents information about a successfully purchased domain
+type PurchasedDomainInfo struct {
+	Domain      string    `json:"domain"`
+	DomainID    string    `json:"domain_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Cost        float64   `json:"cost"`
+	Period      int       `json:"period"`
+}
+
+// FailedDomainPurchase represents information about a failed domain purchase
+type FailedDomainPurchase struct {
+	Domain string `json:"domain"`
+	Error  string `json:"error"`
+}
+
+// WebsiteStatusRequest represents a website status check request
+type WebsiteStatusRequest struct {
+	Domains []string `json:"domains" binding:"required"`
+}
+
+// WebsiteStatusResult represents the result of a website status check
+type WebsiteStatusResult struct {
+	Domain           string    `json:"domain"`
+	HTTPStatus       int       `json:"http_status"`
+	StatusMessage    string    `json:"status_message"`
+	ResponseTime     int64     `json:"response_time_ms"`
+	SSLStatus        string    `json:"ssl_status,omitempty"`
+	RedirectURL      string    `json:"redirect_url,omitempty"`
+	LastChecked      time.Time `json:"last_checked"`
+	Error            string    `json:"error,omitempty"`
+}
+
 // ImportRequest represents a manual domain import request
 type ImportRequest struct {
 	Provider        string            `json:"provider"`
@@ -240,16 +341,6 @@ type DNSRecord struct {
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// DomainPurchaseRequest represents a bulk domain purchase request
-type DomainPurchaseRequest struct {
-	Domains     []string `json:"domains" binding:"required"`
-	Provider    string   `json:"provider" binding:"required"`
-	CredentialsID string `json:"credentials_id" binding:"required"`
-	CategoryID  *string  `json:"category_id,omitempty"`
-	ProjectID   *string  `json:"project_id,omitempty"`
-	Years       int      `json:"years" binding:"min=1,max=10"`
-	AutoRenew   bool     `json:"auto_renew"`
-}
 
 // DomainDecommissionRequest represents a bulk domain decommission request
 type DomainDecommissionRequest struct {
@@ -264,6 +355,50 @@ type BulkSyncRequest struct {
 	Providers     []string `json:"providers,omitempty"`
 	CredentialsIDs []string `json:"credentials_ids,omitempty"`
 	ForceRefresh  bool     `json:"force_refresh"`
+}
+
+// UptimeRobotConfig represents UptimeRobot configuration
+type UptimeRobotConfig struct {
+	APIKey       string   `json:"api_key" binding:"required"`
+	Enabled      bool     `json:"enabled"`
+	Interval     int      `json:"interval"`           // Check interval in seconds (60, 120, 300, 600, 900, 1800, 3600)
+	AlertContacts []string `json:"alert_contacts"`     // Alert contact IDs
+	AutoCreateMonitors bool `json:"auto_create_monitors"` // Automatically create monitors for new domains
+}
+
+// UptimeRobotMonitorRequest represents a request to create/update UptimeRobot monitoring
+type UptimeRobotMonitorRequest struct {
+	DomainIDs     []string `json:"domain_ids" binding:"required"`
+	MonitorType   string   `json:"monitor_type"`   // http, ping, keyword
+	Interval      int      `json:"interval"`       // Check interval in seconds
+	AlertContacts []string `json:"alert_contacts"` // Alert contact IDs
+	KeywordCheck  bool     `json:"keyword_check,omitempty"`
+	KeywordValue  string   `json:"keyword_value,omitempty"`
+	KeywordExists bool     `json:"keyword_exists,omitempty"`
+}
+
+// UptimeRobotSyncResponse represents the response from UptimeRobot sync operations
+type UptimeRobotSyncResponse struct {
+	Success       bool                    `json:"success"`
+	Message       string                  `json:"message"`
+	MonitorsSync  int                     `json:"monitors_synced"`
+	MonitorsCreated int                   `json:"monitors_created"`
+	MonitorsUpdated int                   `json:"monitors_updated"`
+	MonitorsFailed  int                   `json:"monitors_failed"`
+	Results       []DomainMonitorResult   `json:"results,omitempty"`
+}
+
+// DomainMonitorResult represents the result of monitoring setup for a domain
+type DomainMonitorResult struct {
+	DomainID      string  `json:"domain_id"`
+	DomainName    string  `json:"domain_name"`
+	MonitorID     *int    `json:"monitor_id,omitempty"`
+	Action        string  `json:"action"` // created, updated, failed, skipped
+	Success       bool    `json:"success"`
+	Message       string  `json:"message"`
+	UptimeRatio   *float64 `json:"uptime_ratio,omitempty"`
+	ResponseTime  *int    `json:"response_time,omitempty"`
+	Error         string  `json:"error,omitempty"`
 }
 
 // Validate checks if domain data is valid

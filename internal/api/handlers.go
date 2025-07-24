@@ -9,19 +9,22 @@ import (
 	"github.com/rusiqe/domainvault/internal/core"
 	"github.com/rusiqe/domainvault/internal/storage"
 	"github.com/rusiqe/domainvault/internal/types"
+	"github.com/rusiqe/domainvault/internal/uptimerobot"
 )
 
 // DomainHandler handles HTTP requests for domain operations
 type DomainHandler struct {
-	repo    storage.DomainRepository
-	syncSvc *core.SyncService
+	repo      storage.DomainRepository
+	syncSvc   *core.SyncService
+	uptimeSvc *uptimerobot.Service
 }
 
 // NewDomainHandler creates a new domain handler
-func NewDomainHandler(repo storage.DomainRepository, syncSvc *core.SyncService) *DomainHandler {
+func NewDomainHandler(repo storage.DomainRepository, syncSvc *core.SyncService, uptimeSvc *uptimerobot.Service) *DomainHandler {
 	return &DomainHandler{
-		repo:    repo,
-		syncSvc: syncSvc,
+		repo:      repo,
+		syncSvc:   syncSvc,
+		uptimeSvc: uptimeSvc,
 	}
 }
 
@@ -66,6 +69,11 @@ func (h *DomainHandler) RegisterRoutes(r *gin.Engine) {
 		api.POST("/sync", h.TriggerSync)
 		api.POST("/sync/:provider", h.SyncProvider)
 		api.GET("/sync/status", h.GetSyncStatus)
+
+		// UptimeRobot monitoring
+		api.POST("/monitoring/sync", h.SyncMonitoring)
+		api.POST("/monitoring/create", h.CreateMonitoring)
+		api.GET("/monitoring/stats", h.GetMonitoringStats)
 
 		// Health check
 		api.GET("/health", h.HealthCheck)
@@ -648,4 +656,120 @@ func (h *DomainHandler) ListProviders(c *gin.Context) {
 		"providers": providers,
 		"count":     len(providers),
 	})
+}
+
+// ============================================================================
+// UPTIMEROBOT MONITORING METHODS
+// ============================================================================
+
+// SyncMonitoring synchronizes UptimeRobot monitoring for domains
+func (h *DomainHandler) SyncMonitoring(c *gin.Context) {
+	// Check if UptimeRobot is configured
+	if h.uptimeSvc == nil || !h.uptimeSvc.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "UptimeRobot is not configured",
+			"message": "Please configure UptimeRobot API key first",
+		})
+		return
+	}
+
+	// Get all domains
+	domains, err := h.repo.GetByFilter(types.DomainFilter{Limit: 1000}) // Get all domains
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Sync monitoring with UptimeRobot
+	monitorType := uptimerobot.MonitorTypeHTTP // Default to HTTP monitoring
+	autoCreate := true // Auto-create monitors for domains without them
+
+	response, err := h.uptimeSvc.SyncDomainMonitoring(domains, monitorType, autoCreate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to sync monitoring",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CreateMonitoring creates UptimeRobot monitors for specified domains
+func (h *DomainHandler) CreateMonitoring(c *gin.Context) {
+	// Check if UptimeRobot is configured
+	if h.uptimeSvc == nil || !h.uptimeSvc.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "UptimeRobot is not configured",
+			"message": "Please configure UptimeRobot API key first",
+		})
+		return
+	}
+
+	var req types.UptimeRobotMonitorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid monitoring request",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Create monitors for the specified domains
+	response, err := h.uptimeSvc.BulkCreateMonitors(&req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create monitors",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
+// GetMonitoringStats returns UptimeRobot monitoring statistics
+func (h *DomainHandler) GetMonitoringStats(c *gin.Context) {
+	// Check if UptimeRobot is configured
+	if h.uptimeSvc == nil || !h.uptimeSvc.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "UptimeRobot is not configured",
+			"message": "Please configure UptimeRobot API key first",
+		})
+		return
+	}
+
+	// Get monitoring metrics from UptimeRobot
+	metrics, err := h.uptimeSvc.GetMonitoringMetrics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get monitoring statistics",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Also get database monitoring stats
+	dbStats := h.getDBMonitoringStats()
+
+	c.JSON(http.StatusOK, gin.H{
+		"uptimerobot": metrics,
+		"database": dbStats,
+		"timestamp": time.Now(),
+	})
+}
+
+// getDBMonitoringStats retrieves monitoring statistics from the database
+func (h *DomainHandler) getDBMonitoringStats() map[string]interface{} {
+	// This would typically query the database for monitoring statistics
+	// For now, return placeholder stats
+	return map[string]interface{}{
+		"total_domains": 0,
+		"monitored_domains": 0,
+		"up_domains": 0,
+		"down_domains": 0,
+		"average_uptime": 0.0,
+		"average_response_time": 0,
+	}
 }

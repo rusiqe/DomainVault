@@ -6,11 +6,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rusiqe/domainvault/internal/analytics"
 	"github.com/rusiqe/domainvault/internal/api"
 	"github.com/rusiqe/domainvault/internal/auth"
 	"github.com/rusiqe/domainvault/internal/core"
 	"github.com/rusiqe/domainvault/internal/dns"
+	"github.com/rusiqe/domainvault/internal/notifications"
 	"github.com/rusiqe/domainvault/internal/providers"
+	"github.com/rusiqe/domainvault/internal/security"
 	"github.com/rusiqe/domainvault/internal/types"
 )
 
@@ -167,6 +170,17 @@ func (r *InMemoryRepo) Update(domain *types.Domain) error {
 		}
 	}
 	return types.ErrDomainNotFound
+}
+
+// GetDomainsByName returns domains matching the given domain name
+func (r *InMemoryRepo) GetDomainsByName(name string) ([]types.Domain, error) {
+	result := make([]types.Domain, 0)
+	for _, domain := range r.domains {
+		if domain.Name == name {
+			result = append(result, domain)
+		}
+	}
+	return result, nil
 }
 
 // User repository methods (in-memory)
@@ -356,6 +370,16 @@ func main() {
 	syncSvc := core.NewSyncService(repo)
 	authSvc := auth.NewAuthService(repo)
 	dnsSvc := dns.NewDNSService(repo)
+	analyticsSvc := analytics.NewAnalyticsService(repo)
+	
+	// Mock notification configurations
+	emailConfig := notifications.EmailConfig{Enabled: false}
+	slackConfig := notifications.SlackConfig{Enabled: false}
+	webhookConfig := notifications.WebhookConfig{Enabled: false}
+	notificationSvc := notifications.NewNotificationService(emailConfig, slackConfig, webhookConfig)
+	
+	// Mock security service - use nil for development
+	var securitySvc *security.SecurityService = nil
 
 	// Add mock provider
 	mockClient, err := providers.NewMockClient(providers.ProviderCredentials{})
@@ -388,7 +412,7 @@ func main() {
 
 	// Initialize API handlers
 	handler := api.NewDomainHandler(repo, syncSvc)
-	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc)
+	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)

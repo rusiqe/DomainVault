@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rusiqe/domainvault/internal/types"
@@ -10,11 +11,12 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Port         int           `json:"port"`
-	DatabaseURL  string        `json:"database_url"`
-	SyncInterval time.Duration `json:"sync_interval"`
-	LogLevel     string        `json:"log_level"`
-	Providers    []ProviderConfig `json:"providers"`
+	Port         int                    `json:"port"`
+	DatabaseURL  string                 `json:"database_url"`
+	SyncInterval time.Duration          `json:"sync_interval"`
+	LogLevel     string                 `json:"log_level"`
+	Providers    []ProviderConfig       `json:"providers"`
+	UptimeRobot  *UptimeRobotConfig     `json:"uptime_robot,omitempty"`
 }
 
 // ProviderConfig holds configuration for a domain registrar
@@ -22,6 +24,15 @@ type ProviderConfig struct {
 	Name        string                 `json:"name"`
 	Enabled     bool                   `json:"enabled"`
 	Credentials map[string]interface{} `json:"credentials"`
+}
+
+// UptimeRobotConfig holds UptimeRobot monitoring configuration
+type UptimeRobotConfig struct {
+	APIKey             string   `json:"api_key"`
+	Enabled            bool     `json:"enabled"`
+	Interval           int      `json:"interval"`              // Check interval in seconds
+	AlertContacts      []string `json:"alert_contacts"`        // Alert contact IDs
+	AutoCreateMonitors bool     `json:"auto_create_monitors"`  // Auto-create monitors for new domains
 }
 
 // Load reads configuration from environment variables
@@ -32,6 +43,7 @@ func Load() (*Config, error) {
 		SyncInterval: getEnvDuration("SYNC_INTERVAL", "1h"),
 		LogLevel:     getEnvString("LOG_LEVEL", "info"),
 		Providers:    loadProviders(),
+		UptimeRobot:  loadUptimeRobotConfig(),
 	}
 
 	if err := config.validate(); err != nil {
@@ -86,6 +98,33 @@ func loadProviders() []ProviderConfig {
 	return providers
 }
 
+// loadUptimeRobotConfig loads UptimeRobot configuration from environment
+func loadUptimeRobotConfig() *UptimeRobotConfig {
+	apiKey := getEnvString("UPTIMEROBOT_API_KEY", "")
+	if apiKey == "" {
+		return nil // UptimeRobot not configured
+	}
+
+	// Parse alert contacts from comma-separated string
+	var alertContacts []string
+	if contactsStr := getEnvString("UPTIMEROBOT_ALERT_CONTACTS", ""); contactsStr != "" {
+		// Simple split by comma - in production you might want more robust parsing
+		for _, contact := range splitString(contactsStr, ",") {
+			if contact := trimString(contact); contact != "" {
+				alertContacts = append(alertContacts, contact)
+			}
+		}
+	}
+
+	return &UptimeRobotConfig{
+		APIKey:             apiKey,
+		Enabled:            getEnvBool("UPTIMEROBOT_ENABLED", true),
+		Interval:           getEnvInt("UPTIMEROBOT_INTERVAL", 300), // Default 5 minutes
+		AlertContacts:      alertContacts,
+		AutoCreateMonitors: getEnvBool("UPTIMEROBOT_AUTO_CREATE", true),
+	}
+}
+
 // Helper functions for environment variables
 func getEnvString(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -111,4 +150,21 @@ func getEnvDuration(key string, defaultValue string) time.Duration {
 	// Fallback to default
 	duration, _ := time.ParseDuration(defaultValue)
 	return duration
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
+		}
+	}
+	return defaultValue
+}
+
+func splitString(s, sep string) []string {
+	return strings.Split(s, sep)
+}
+
+func trimString(s string) string {
+	return strings.TrimSpace(s)
 }

@@ -2138,6 +2138,375 @@ function isDomainValid(domain) {
     return domainRegex.test(domain);
 }
 
+// ============================================================================
+// DOMAIN SEARCH & PURCHASE FUNCTIONS
+// ============================================================================
+
+// Domain search functionality
+async function searchDomains() {
+    const searchInput = document.getElementById('domainSearchInput');
+    const couponCode = document.getElementById('couponCode');
+    
+    if (!searchInput || !searchInput.value.trim()) {
+        showNotification('Please enter at least one domain name to search', 'error');
+        return;
+    }
+    
+    // Parse domain list from textarea
+    const domainNames = parseDomainList(searchInput.value);
+    
+    if (domainNames.length === 0) {
+        showNotification('Please enter valid domain names', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const searchBtn = document.querySelector('.search-input-group .btn-primary');
+    const originalText = searchBtn.innerHTML;
+    searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+    searchBtn.disabled = true;
+    
+    try {
+        const searchRequest = {
+            domains: domainNames,
+            coupon_code: couponCode?.value || ''
+        };
+        
+        const results = await apiCall('/api/v1/admin/domains/search', {
+            method: 'POST',
+            body: JSON.stringify(searchRequest)
+        });
+        
+        if (results) {
+            displaySearchResults(results);
+        }
+    } catch (error) {
+        console.error('Domain search error:', error);
+        showNotification('Failed to search domains. Please try again.', 'error');
+    } finally {
+        searchBtn.innerHTML = originalText;
+        searchBtn.disabled = false;
+    }
+}
+
+// Display search results
+function displaySearchResults(results) {
+    const resultsContainer = document.getElementById('searchResultsContainer');
+    const searchResults = document.getElementById('searchResults');
+    
+    if (!resultsContainer || !searchResults) {
+        console.error('Search results containers not found');
+        return;
+    }
+    
+    if (!results || !Array.isArray(results) || results.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No search results found</div>';
+        searchResults.style.display = 'block';
+        return;
+    }
+    
+    // Group results by availability
+    const availableDomains = results.filter(r => r.available);
+    const unavailableDomains = results.filter(r => !r.available);
+    
+    let html = '';
+    
+    if (availableDomains.length > 0) {
+        html += '<div class="results-section">';
+        html += '<h5 class="results-title available"><i class="fas fa-check-circle"></i> Available Domains (' + availableDomains.length + ')</h5>';
+        html += '<div class="available-domains">';
+        
+        availableDomains.forEach(result => {
+            html += createDomainResultCard(result, true);
+        });
+        
+        html += '</div></div>';
+    }
+    
+    if (unavailableDomains.length > 0) {
+        html += '<div class="results-section">';
+        html += '<h5 class="results-title unavailable"><i class="fas fa-times-circle"></i> Unavailable Domains (' + unavailableDomains.length + ')</h5>';
+        html += '<div class="unavailable-domains">';
+        
+        unavailableDomains.forEach(result => {
+            html += createDomainResultCard(result, false);
+        });
+        
+        html += '</div></div>';
+    }
+    
+    resultsContainer.innerHTML = html;
+    searchResults.style.display = 'block';
+    
+    // Scroll to results
+    searchResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Create a domain result card
+function createDomainResultCard(result, isAvailable) {
+    let cardHtml = `
+        <div class="domain-result-card ${isAvailable ? 'available' : 'unavailable'}">
+            <div class="domain-info">
+                <div class="domain-name">
+                    <span class="domain-text">${result.domain}</span>
+                    <span class="availability-badge ${isAvailable ? 'available' : 'unavailable'}">
+                        <i class="fas fa-${isAvailable ? 'check' : 'times'}"></i>
+                        ${isAvailable ? 'Available' : 'Taken'}
+                    </span>
+                    ${result.premium ? '<span class="premium-badge">Premium</span>' : ''}
+                </div>
+    `;
+    
+    if (isAvailable && result.pricing) {
+        cardHtml += `
+                <div class="pricing-info">
+                    <div class="price-details">
+                        <span class="purchase-price">$${result.pricing.purchase_price}</span>
+                        <span class="price-period">/${result.pricing.period} year${result.pricing.period > 1 ? 's' : ''}</span>
+                        ${result.pricing.renewal_price ? `<span class="renewal-price">Renewal: $${result.pricing.renewal_price}</span>` : ''}
+                    </div>
+                    ${result.pricing.coupon_discount ? `<div class="coupon-discount">Coupon saves: $${result.pricing.coupon_discount}</div>` : ''}
+                </div>
+        `;
+    }
+    
+    if (result.providers && result.providers.length > 0) {
+        cardHtml += '<div class="provider-options">';
+        
+        result.providers.forEach(provider => {
+            const isRecommended = provider.recommended;
+            const isSupported = provider.supported;
+            
+            cardHtml += `
+                <div class="provider-option ${isRecommended ? 'recommended' : ''} ${!isSupported ? 'unsupported' : ''}">
+                    <div class="provider-info">
+                        <span class="provider-name">${provider.display_name}</span>
+                        ${isRecommended ? '<span class="recommended-badge">Recommended</span>' : ''}
+                        ${!isSupported ? '<span class="unsupported-badge">No credentials</span>' : ''}
+                    </div>
+                    <div class="provider-pricing">
+                        <span class="provider-price">$${provider.pricing.purchase_price}</span>
+                        ${isAvailable && isSupported ? 
+                            `<button class="btn btn-sm btn-primary" onclick="purchaseDomain('${result.domain}', '${provider.provider_id}')">
+                                <i class="fas fa-shopping-cart"></i> Buy
+                            </button>` : 
+                            `<button class="btn btn-sm btn-secondary" disabled>
+                                ${!isSupported ? 'Setup Required' : 'Unavailable'}
+                            </button>`}
+                    </div>
+                </div>
+            `;
+        });
+        
+        cardHtml += '</div>';
+    }
+    
+    if (result.message) {
+        cardHtml += `<div class="result-message">${result.message}</div>`;
+    }
+    
+    cardHtml += '</div></div>';
+    
+    return cardHtml;
+}
+
+// Purchase a single domain
+async function purchaseDomain(domain, providerId) {
+    if (!confirm(`Purchase ${domain} for registration?`)) {
+        return;
+    }
+    
+    try {
+        const purchaseRequest = {
+            domains: [{
+                domain: domain,
+                period: 1 // Default to 1 year
+            }],
+            provider_id: providerId,
+            auto_renew: true
+        };
+        
+        const result = await apiCall('/api/v1/admin/domains/purchase', {
+            method: 'POST',
+            body: JSON.stringify(purchaseRequest)
+        });
+        
+        if (result && result.success) {
+            showNotification(`Successfully purchased ${domain}!`, 'success');
+            
+            // Refresh domain list and hide the purchased domain from results
+            if (state.currentSection === 'domains') {
+                await loadDomains();
+            }
+            
+            // Update the search results to show purchased status
+            updateDomainResultStatus(domain, 'purchased');
+        } else {
+            showNotification(result?.message || 'Failed to purchase domain', 'error');
+        }
+    } catch (error) {
+        console.error('Domain purchase error:', error);
+        showNotification('Failed to purchase domain. Please try again.', 'error');
+    }
+}
+
+// Update domain result status after purchase
+function updateDomainResultStatus(domain, status) {
+    const resultCards = document.querySelectorAll('.domain-result-card');
+    
+    resultCards.forEach(card => {
+        const domainText = card.querySelector('.domain-text');
+        if (domainText && domainText.textContent === domain) {
+            if (status === 'purchased') {
+                const badge = card.querySelector('.availability-badge');
+                if (badge) {
+                    badge.className = 'availability-badge purchased';
+                    badge.innerHTML = '<i class="fas fa-check-circle"></i> Purchased';
+                }
+                
+                // Disable purchase buttons
+                const buyButtons = card.querySelectorAll('.btn-primary');
+                buyButtons.forEach(btn => {
+                    btn.className = 'btn btn-sm btn-success';
+                    btn.innerHTML = '<i class="fas fa-check"></i> Purchased';
+                    btn.disabled = true;
+                });
+            }
+        }
+    });
+}
+
+// Show domain search modal (if needed)
+function showDomainSearchModal() {
+    // Switch to domains section and focus on search
+    switchSection('domains');
+    
+    // Focus on search input
+    setTimeout(() => {
+        const searchInput = document.getElementById('domainSearchInput');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
+}
+
+// Filter domains in the table
+function filterDomains() {
+    const searchTerm = document.getElementById('domainsSearchFilter')?.value.toLowerCase() || '';
+    const table = document.getElementById('allDomainsTable');
+    
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        const domainCell = row.querySelector('td:nth-child(2)'); // Domain name column
+        if (domainCell) {
+            const domainName = domainCell.textContent.toLowerCase();
+            const shouldShow = domainName.includes(searchTerm);
+            row.style.display = shouldShow ? '' : 'none';
+        }
+    });
+}
+
+// Toggle select all domains
+function toggleSelectAllDomains() {
+    const selectAllCheckbox = document.getElementById('selectAllDomains');
+    const domainCheckboxes = document.querySelectorAll('#allDomainsTable tbody input[type="checkbox"]');
+    
+    if (!selectAllCheckbox) return;
+    
+    domainCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateBulkActionsVisibility();
+}
+
+// Update bulk actions visibility based on selected domains
+function updateBulkActionsVisibility() {
+    const domainCheckboxes = document.querySelectorAll('#allDomainsTable tbody input[type="checkbox"]:checked');
+    const bulkActions = document.querySelector('.bulk-actions');
+    
+    if (bulkActions) {
+        bulkActions.style.display = domainCheckboxes.length > 0 ? 'flex' : 'none';
+    }
+}
+
+// Bulk operations
+function bulkStatusCheck() {
+    const selectedDomains = getSelectedDomains();
+    
+    if (selectedDomains.length === 0) {
+        showNotification('Please select domains to check status', 'error');
+        return;
+    }
+    
+    if (!confirm(`Check status for ${selectedDomains.length} selected domain(s)?`)) {
+        return;
+    }
+    
+    // Implement bulk status check
+    console.log('Bulk status check for domains:', selectedDomains);
+    showNotification('Bulk status check initiated', 'info');
+}
+
+function bulkCategorize() {
+    const selectedDomains = getSelectedDomains();
+    
+    if (selectedDomains.length === 0) {
+        showNotification('Please select domains to categorize', 'error');
+        return;
+    }
+    
+    // Implement bulk categorization
+    console.log('Bulk categorize for domains:', selectedDomains);
+    showNotification('Bulk categorization feature coming soon', 'info');
+}
+
+function bulkRenew() {
+    const selectedDomains = getSelectedDomains();
+    
+    if (selectedDomains.length === 0) {
+        showNotification('Please select domains to renew', 'error');
+        return;
+    }
+    
+    if (!confirm(`Renew ${selectedDomains.length} selected domain(s)? This action cannot be undone.`)) {
+        return;
+    }
+    
+    // Implement bulk renewal
+    console.log('Bulk renew for domains:', selectedDomains);
+    showNotification('Bulk renewal feature coming soon', 'info');
+}
+
+// Helper function to get selected domain IDs
+function getSelectedDomains() {
+    const checkboxes = document.querySelectorAll('#allDomainsTable tbody input[type="checkbox"]:checked');
+    const domainIds = [];
+    
+    checkboxes.forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        if (row) {
+            // Extract domain ID from the row (you might need to store this in a data attribute)
+            const domainName = row.querySelector('td:nth-child(2)')?.textContent;
+            if (domainName) {
+                domainIds.push(domainName); // Using domain name as identifier for now
+            }
+        }
+    });
+    
+    return domainIds;
+}
+
+// Refresh domains
+async function refreshDomains() {
+    await loadDomains();
+    showNotification('Domains refreshed', 'success');
+}
+
 // Global function exports for bulk DNS management
 window.switchBulkTab = switchBulkTab;
 window.selectAllDomains = selectAllDomains;
@@ -2151,3 +2520,14 @@ window.downloadCsvTemplate = downloadCsvTemplate;
 window.showBulkConfirmationModal = showBulkConfirmationModal;
 window.hideBulkConfirmationModal = hideBulkConfirmationModal;
 window.executeBulkChanges = executeBulkChanges;
+
+// Domain search and management global functions
+window.searchDomains = searchDomains;
+window.purchaseDomain = purchaseDomain;
+window.showDomainSearchModal = showDomainSearchModal;
+window.filterDomains = filterDomains;
+window.toggleSelectAllDomains = toggleSelectAllDomains;
+window.bulkStatusCheck = bulkStatusCheck;
+window.bulkCategorize = bulkCategorize;
+window.bulkRenew = bulkRenew;
+window.refreshDomains = refreshDomains;

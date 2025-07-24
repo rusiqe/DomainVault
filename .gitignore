@@ -1,0 +1,130 @@
+# ================================
+# SENSITIVE CONFIGURATION FILES
+# ================================
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# ================================
+# GO BUILD ARTIFACTS
+# ================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+main
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# ================================
+# DEVELOPMENT & SYSTEM FILES
+# ================================
+# MacOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ================================
+# IDE & EDITOR FILES
+# ================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA / GoLand
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ================================
+# LOGS & TEMPORARY FILES
+# ================================
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ================================
+# DATABASE FILES
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ================================
+# CERTIFICATES & KEYS
+# ================================
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# ================================
+# BACKUP FILES
+# ================================
+*.bak
+*.backup
+*~
+
+# ================================
+# DOCUMENTATION BUILD
+# ================================
+docs/_build/
+site/
+
+# ================================
+# PACKAGE MANAGERS
+# ================================
+node_modules/
+vendor/
+
+# ================================
+# UPTIMEROBOT SPECIFIC
+# ================================
+# Monitor configuration backups
+monitors_backup_*.json
+uptimerobot_sync_*.log

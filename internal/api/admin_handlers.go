@@ -129,6 +129,13 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.POST("/domains/:id/check-status", h.CheckDomainStatus)
 		admin.POST("/domains/bulk-check-status", h.BulkCheckStatus)
 		admin.GET("/status/summary", h.GetStatusSummary)
+		admin.POST("/domains/:id/check-website-status", h.CheckWebsiteStatus)
+		admin.POST("/domains/bulk-check-website-status", h.BulkCheckWebsiteStatus)
+
+		// Domain search and purchase
+		admin.POST("/domains/search", h.SearchDomains)
+		admin.POST("/domains/purchase", h.PurchaseDomains)
+		admin.GET("/domains/purchase-providers", h.GetPurchaseProviders)
 
 		// Analytics and reporting
 		admin.GET("/analytics/portfolio", h.GetPortfolioAnalytics)
@@ -229,7 +236,7 @@ func (h *AdminHandler) BulkPurchaseDomains(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{
 		"message":     "Bulk purchase initiated",
 		"domains":     req.Domains,
-		"provider":    req.Provider,
+		"provider_id": req.ProviderID,
 		"status":      "pending",
 		"request_id":  "bulk-" + fmt.Sprint(len(req.Domains)),
 	})
@@ -1150,6 +1157,17 @@ func (h *AdminHandler) GetFinancialAnalytics(c *gin.Context) {
 
 // GetSecurityAnalytics retrieves security analysis and metrics
 func (h *AdminHandler) GetSecurityAnalytics(c *gin.Context) {
+	if h.securitySvc == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Security service not configured for development mode",
+			"metrics": map[string]interface{}{
+				"total_events": 0,
+				"alerts": 0,
+				"logins": 1,
+			},
+		})
+		return
+	}
 	metrics, err := h.securitySvc.GetSecurityMetrics(30 * 24 * time.Hour) // Last 30 days
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1228,6 +1246,17 @@ func (h *AdminHandler) GetAuditEvents(c *gin.Context) {
 
 // GetSecurityMetrics retrieves security metrics
 func (h *AdminHandler) GetSecurityMetrics(c *gin.Context) {
+	if h.securitySvc == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Security service not configured for development mode",
+			"metrics": map[string]interface{}{
+				"total_events": 0,
+				"alerts": 0,
+				"logins": 1,
+			},
+		})
+		return
+	}
 	periodStr := c.Query("period")
 	period, err := strconv.Atoi(periodStr)
 	if err != nil || period <= 0 {
@@ -1596,4 +1625,83 @@ func (h *AdminHandler) BulkUpdateFromCSV(c *gin.Context) {
 		"error_count":   errorCount,
 		"results":       results,
 	})
+}
+
+// SearchDomains handles the domain availability search endpoint
+func (h *AdminHandler) SearchDomains(c *gin.Context) {
+	var request types.DomainSearchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	results, err := h.providerSvc.SearchDomains(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search domains: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// PurchaseDomains handles the domain purchase endpoint
+func (h *AdminHandler) PurchaseDomains(c *gin.Context) {
+	var request types.DomainPurchaseRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	response, err := h.providerSvc.PurchaseDomains(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to purchase domains: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CheckWebsiteStatus handles the website status check endpoint
+func (h *AdminHandler) CheckWebsiteStatus(c *gin.Context) {
+	var request types.WebsiteStatusRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	results, err := h.statusChecker.CheckWebsiteStatus(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check website status: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// BulkCheckWebsiteStatus handles the bulk website status check endpoint
+func (h *AdminHandler) BulkCheckWebsiteStatus(c *gin.Context) {
+	var request types.WebsiteStatusRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	results, err := h.statusChecker.BulkCheckWebsiteStatus(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check website statuses: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// GetPurchaseProviders retrieves the list of supported providers for domain purchase
+func (h *AdminHandler) GetPurchaseProviders(c *gin.Context) {
+	providers, err := h.providerSvc.GetPurchaseProviders()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get purchase providers: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, providers)
 }
