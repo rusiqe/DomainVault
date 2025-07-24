@@ -228,6 +228,22 @@ func initializeSupportedProviders() map[string]types.ProviderInfo {
 				},
 			},
 		},
+		"hostinger": {
+			Name:        "hostinger",
+			DisplayName: "Hostinger",
+			Description: "Hostinger domain registrar with competitive pricing and reliable service",
+			DocumentationURL: "https://developers.hostinger.com/",
+			Fields: []types.ProviderFieldInfo{
+				{
+					Name:        "api_key",
+					DisplayName: "API Key",
+					Type:        "password",
+					Required:    true,
+					Description: "Your Hostinger API key from the developer console",
+					Placeholder: "FWdasrhp4ek2trazPnGO26RgTinoagaGnJRJxy4w2cbc0c85",
+				},
+			},
+		},
 		"mock": {
 			Name:        "mock",
 			DisplayName: "Mock Provider (Testing)",
