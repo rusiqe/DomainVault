@@ -23,7 +23,12 @@ func NewService(cfg *config.UptimeRobotConfig) *Service {
 		isConfigured: false,
 	}
 
-	if cfg != nil && cfg.APIKey != "" && cfg.Enabled {
+	// Check for mock mode
+	if cfg != nil && cfg.APIKey == "mock" {
+		// Enable mock mode for development
+		service.isConfigured = true
+		service.client = nil // Use mock responses
+	} else if cfg != nil && cfg.APIKey != "" && cfg.Enabled {
 		service.client = NewClient(cfg.APIKey)
 		service.isConfigured = true
 	}
@@ -42,6 +47,11 @@ func (s *Service) TestConnection() error {
 		return fmt.Errorf("UptimeRobot is not configured")
 	}
 
+	// Mock mode
+	if s.client == nil {
+		return nil // Mock always succeeds
+	}
+
 	return s.client.TestConnection()
 }
 
@@ -49,6 +59,17 @@ func (s *Service) TestConnection() error {
 func (s *Service) GetAccountInfo() (*Account, error) {
 	if !s.isConfigured {
 		return nil, fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		return &Account{
+			Email:          "demo@domainvault.com",
+			MonitorLimit:   50,
+			UpMonitors:     4,
+			DownMonitors:   1,
+			PausedMonitors: 0,
+		}, nil
 	}
 
 	return s.client.GetAccountDetails()

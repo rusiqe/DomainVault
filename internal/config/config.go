@@ -95,6 +95,17 @@ func loadProviders() []ProviderConfig {
 		})
 	}
 
+	// Hostinger configuration
+	if hostingerKey := getEnvString("HOSTINGER_API_KEY", ""); hostingerKey != "" {
+		providers = append(providers, ProviderConfig{
+			Name:    "hostinger",
+			Enabled: true,
+			Credentials: map[string]interface{}{
+				"api_key": hostingerKey,
+			},
+		})
+	}
+
 	return providers
 }
 

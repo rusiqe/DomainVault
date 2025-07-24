@@ -146,6 +146,9 @@ async function loadSectionData(section) {
         case 'providers':
             await loadProviders();
             break;
+        case 'uptime':
+            await loadUptimeMonitoring();
+            break;
         case 'security':
             await loadSecurity();
             break;
@@ -160,6 +163,24 @@ async function loadSectionData(section) {
             break;
         default:
             console.log(`Section ${section} not implemented yet`);
+    }
+}
+
+// Uptime Monitoring functions
+async function loadUptimeMonitoring() {
+    try {
+        const response = await apiCall('/api/v1/monitoring/stats');
+
+        if (!response) return;
+
+        const uptimeStats = response.uptimerobot;
+
+        document.getElementById('domainUptime').innerText = uptimeStats.uptime + '%';
+        document.getElementById('averageResponseTime').innerText = uptimeStats.average_response_time + ' ms';
+        document.getElementById('monitors').innerText = uptimeStats.total_monitors;
+
+    } catch (error) {
+        console.error('Failed to load uptime monitoring data:', error);
     }
 }
 
@@ -483,6 +504,7 @@ function getProviderIcon(provider) {
     const icons = {
         'namecheap': 'fas fa-shopping-cart',
         'godaddy': 'fas fa-globe',
+        'hostinger': 'fas fa-server',
         'cloudflare': 'fas fa-cloud',
         'route53': 'fab fa-aws',
         'digitalocean': 'fab fa-digital-ocean',

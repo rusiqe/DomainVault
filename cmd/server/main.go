@@ -1,8 +1,10 @@
 package main
 
 import (
+	"github.com/joho/godotenv"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,14 +22,33 @@ import (
 )
 
 func main() {
+	// Load environment variables from .env file
+	log.Printf("Current working directory: %s", func() string {
+		if pwd, err := os.Getwd(); err == nil {
+			return pwd
+		}
+		return "unknown"
+	}())
+	
+	if err := godotenv.Overload(); err != nil {
+		log.Printf("No .env file found or failed to load: %v", err)
+	} else {
+		log.Printf(".env file loaded successfully (with overrides)")
+	}
+	
+	// Debug: Check if DATABASE_URL environment variable is set
+	log.Printf("DATABASE_URL from env: %s", os.Getenv("DATABASE_URL"))
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal("Failed to load configuration:", err)
 	}
+	
+	// Debug: print the loaded database URL
+	log.Printf("Database URL: %s", cfg.DatabaseURL)
 
 	// Initialize storage
-	repo, err := storage.NewPostgresRepo(cfg.DatabaseURL)
+	repo, err := storage.NewRepo(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
@@ -114,9 +135,9 @@ func main() {
 	// Serve static files
 	r.Static("/static", "./web/static")
 
-	// Serve admin interface
+	// Serve admin interface (use enhanced version)
 	r.GET("/admin", func(c *gin.Context) {
-		c.File("./web/admin.html")
+		c.File("./web/admin-enhanced.html")
 	})
 
 	// Serve enhanced admin interface

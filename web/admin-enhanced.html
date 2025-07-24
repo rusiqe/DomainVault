@@ -2078,6 +2078,14 @@
         </div>
 
         <div class="sidebar-section">
+            <div class="sidebar-title">Monitoring</div>
+            <a href="#" class="menu-item" data-section="uptime">
+                <i class="fas fa-heartbeat"></i>
+                Uptime Monitoring
+            </a>
+        </div>
+
+        <div class="sidebar-section">
             <div class="sidebar-title">Security & Alerts</div>
             <a href="#" class="menu-item" data-section="security">
                 <i class="fas fa-shield-alt"></i>
@@ -2677,8 +2685,9 @@ Or paste a list of domains here..."></textarea>
                                     <select id="nsPresets" class="form-control" onchange="applyNameserverPreset()">
                                         <option value="">Choose preset...</option>
                                         <option value="cloudflare">Cloudflare</option>
-                                        <option value="godaddy">GoDaddy</option>
-                                        <option value="namecheap">Namecheap</option>
+                            <option value="godaddy">GoDaddy</option>
+                            <option value="namecheap">Namecheap</option>
+                            <option value="hostinger">Hostinger</option>
                                         <option value="aws">AWS Route 53</option>
                                         <option value="custom">Custom</option>
                                     </select>
@@ -2820,6 +2829,146 @@ mysite.org,CNAME,blog,myblog.wordpress.com,1800,,</pre>
             <div class="card">
                 <div class="card-content">
                     <p>Notification management functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="uptime" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Uptime Monitoring</h1>
+                <p class="page-subtitle">Monitor your domains' uptime with UptimeRobot integration</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="syncUptimeMonitors()">
+                        <i class="fas fa-sync"></i>
+                        Sync Monitors
+                    </button>
+                    <button class="btn btn-secondary" onclick="createBulkMonitors()">
+                        <i class="fas fa-plus"></i>
+                        Create Monitors
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshUptimeData()">
+                        <i class="fas fa-refresh"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- UptimeRobot Configuration Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">UptimeRobot Status</h2>
+                </div>
+                <div class="card-content">
+                    <div id="uptimeRobotStatus" class="sync-status">
+                        <div class="status-indicator offline">
+                            <i class="fas fa-circle"></i>
+                            Checking Configuration...
+                        </div>
+                        <div class="sync-details">
+                            <p>Verifying UptimeRobot API configuration and connectivity.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uptime Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalMonitors">-</div>
+                    <div class="stat-label">Total Monitors</div>
+                    <div class="stat-change positive" id="monitorsChange">UptimeRobot integration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="overallUptime">-</div>
+                    <div class="stat-label">Overall Uptime</div>
+                    <div class="stat-change positive" id="uptimeChange">Last 30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="avgResponseTime">-</div>
+                    <div class="stat-label">Avg Response Time</div>
+                    <div class="stat-change positive" id="responseTimeChange">Milliseconds</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeIncidents">-</div>
+                    <div class="stat-label">Active Incidents</div>
+                    <div class="stat-change negative" id="incidentsChange">Currently down</div>
+                </div>
+            </div>
+
+            <!-- Domain Monitoring Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Domain Monitoring Overview</h2>
+                    <div class="card-actions">
+                        <input type="text" id="monitoringSearchFilter" class="form-control" placeholder="Search domains..." onkeyup="filterMonitoringTable()">
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="domainMonitoringTable">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Monitor Status</th>
+                                    <th>Uptime %</th>
+                                    <th>Response Time</th>
+                                    <th>Last Check</th>
+                                    <th>Downtime</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading monitoring data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uptime Analytics -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Uptime Analytics</h2>
+                </div>
+                <div class="card-content">
+                    <div class="chart-container">
+                        <canvas id="uptimeChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Incidents -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Incidents</h2>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="incidentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading incidents...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </section>

@@ -786,20 +786,39 @@ func (h *AdminHandler) SyncProviderByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider ID required"})
 		return
 	}
-	
+
+	// Get the connected provider
+	provider, err := h.providerSvc.GetConnectedProvider(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Provider not found"})
+		return
+	}
+
 	// Start sync in background
 	go func() {
 		syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
-			return client.FetchDomains()
+			domains, err := client.FetchDomains()
+			if err != nil {
+				return nil, err
+			}
+			
+			// Save domains to repository
+			if len(domains) > 0 {
+				if err := h.domainRepo.UpsertDomains(domains); err != nil {
+					return domains, fmt.Errorf("failed to save domains: %w", err)
+				}
+			}
+			
+			return domains, nil
 		}
 		
 		if err := h.providerSvc.SyncProvider(id, syncFunc); err != nil {
-			log.Printf("Sync failed for provider %s: %v", id, err)
+			log.Printf("Sync failed for provider %s (%s): %v", provider.Name, provider.Provider, err)
 		} else {
-			log.Printf("Sync completed for provider %s", id)
+			log.Printf("Sync completed for provider %s (%s)", provider.Name, provider.Provider)
 		}
 	}()
-	
+
 	c.JSON(http.StatusAccepted, gin.H{
 		"message":     "Sync initiated",
 		"provider_id": id,
@@ -811,7 +830,19 @@ func (h *AdminHandler) SyncAllConnectedProviders(c *gin.Context) {
 	// Start sync in background
 	go func() {
 		syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
-			return client.FetchDomains()
+			domains, err := client.FetchDomains()
+			if err != nil {
+				return nil, err
+			}
+			
+			// Save domains to repository
+			if len(domains) > 0 {
+				if err := h.domainRepo.UpsertDomains(domains); err != nil {
+					return domains, fmt.Errorf("failed to save domains: %w", err)
+				}
+			}
+			
+			return domains, nil
 		}
 		
 		if err := h.providerSvc.SyncAllProviders(syncFunc); err != nil {
@@ -1049,7 +1080,19 @@ func (h *AdminHandler) ConnectProvider(c *gin.Context) {
 	if req.AutoSync {
 		go func() {
 			syncFunc := func(client providers.RegistrarClient) ([]types.Domain, error) {
-				return client.FetchDomains()
+				domains, err := client.FetchDomains()
+				if err != nil {
+					return nil, err
+				}
+				
+				// Save domains to repository
+				if len(domains) > 0 {
+					if err := h.domainRepo.UpsertDomains(domains); err != nil {
+						return domains, fmt.Errorf("failed to save domains: %w", err)
+					}
+				}
+				
+				return domains, nil
 			}
 			
 			if err := h.providerSvc.SyncProvider(connectedProvider.ID, syncFunc); err != nil {

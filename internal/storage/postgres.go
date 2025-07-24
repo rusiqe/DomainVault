@@ -602,6 +602,125 @@ func (r *PostgresRepo) DeleteCredentials(id string) error {
 	return nil
 }
 
+// ============================================================================
+// SECURE CREDENTIALS REPOSITORY METHODS
+// ============================================================================
+
+// CreateSecureCredentials creates new secure provider credentials
+func (r *PostgresRepo) CreateSecureCredentials(creds *types.SecureProviderCredentials) error {
+	if creds.ID == "" {
+		creds.ID = uuid.New().String()
+	}
+	now := time.Now()
+	creds.CreatedAt = now
+	creds.UpdatedAt = now
+	
+	query := `
+		INSERT INTO secure_provider_credentials (id, provider, name, account_name, credential_reference, enabled, connection_status, created_at, updated_at)
+		VALUES (:id, :provider, :name, :account_name, :credential_reference, :enabled, :connection_status, :created_at, :updated_at)`
+	
+	_, err := r.db.NamedExec(query, creds)
+	if err != nil {
+		return fmt.Errorf("failed to create secure credentials: %w", err)
+	}
+	
+	return nil
+}
+
+// GetAllSecureCredentials retrieves all secure provider credentials
+func (r *PostgresRepo) GetAllSecureCredentials() ([]types.SecureProviderCredentials, error) {
+	var credentials []types.SecureProviderCredentials
+	query := `SELECT id, provider, name, account_name, credential_reference, enabled, connection_status, last_sync, last_sync_error, 
+	          created_at, updated_at FROM secure_provider_credentials ORDER BY provider, name`
+	
+	err := r.db.Select(&credentials, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all secure credentials: %w", err)
+	}
+	
+	return credentials, nil
+}
+
+// GetSecureCredentialsByID retrieves secure credentials by ID
+func (r *PostgresRepo) GetSecureCredentialsByID(id string) (*types.SecureProviderCredentials, error) {
+	var creds types.SecureProviderCredentials
+	query := `SELECT id, provider, name, account_name, credential_reference, enabled, connection_status, last_sync, last_sync_error, 
+	          created_at, updated_at FROM secure_provider_credentials WHERE id = $1`
+	
+	err := r.db.Get(&creds, query, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, types.ErrDomainNotFound
+		}
+		return nil, fmt.Errorf("failed to get secure credentials by ID: %w", err)
+	}
+	
+	return &creds, nil
+}
+
+// GetSecureCredentialsByProvider retrieves all secure credentials for a provider
+func (r *PostgresRepo) GetSecureCredentialsByProvider(provider string) ([]types.SecureProviderCredentials, error) {
+	var credentials []types.SecureProviderCredentials
+	query := `SELECT id, provider, name, account_name, credential_reference, enabled, connection_status, last_sync, last_sync_error, 
+	          created_at, updated_at FROM secure_provider_credentials WHERE provider = $1 ORDER BY name`
+	
+	err := r.db.Select(&credentials, query, provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secure credentials by provider: %w", err)
+	}
+	
+	return credentials, nil
+}
+
+// GetSecureCredentialsByReference retrieves secure credentials by credential reference
+func (r *PostgresRepo) GetSecureCredentialsByReference(reference string) (*types.SecureProviderCredentials, error) {
+	var creds types.SecureProviderCredentials
+	query := `SELECT id, provider, name, account_name, credential_reference, enabled, connection_status, last_sync, last_sync_error, 
+	          created_at, updated_at FROM secure_provider_credentials WHERE credential_reference = $1`
+	
+	err := r.db.Get(&creds, query, reference)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, types.ErrDomainNotFound
+		}
+		return nil, fmt.Errorf("failed to get secure credentials by reference: %w", err)
+	}
+	
+	return &creds, nil
+}
+
+// UpdateSecureCredentials updates secure provider credentials
+func (r *PostgresRepo) UpdateSecureCredentials(creds *types.SecureProviderCredentials) error {
+	creds.UpdatedAt = time.Now()
+	query := `
+		UPDATE secure_provider_credentials 
+		SET name = :name, account_name = :account_name, credential_reference = :credential_reference, enabled = :enabled, 
+		    connection_status = :connection_status, last_sync = :last_sync, last_sync_error = :last_sync_error, updated_at = :updated_at
+		WHERE id = :id`
+	
+	_, err := r.db.NamedExec(query, creds)
+	if err != nil {
+		return fmt.Errorf("failed to update secure credentials: %w", err)
+	}
+	
+	return nil
+}
+
+// DeleteSecureCredentials deletes secure provider credentials
+func (r *PostgresRepo) DeleteSecureCredentials(id string) error {
+	result, err := r.db.Exec("DELETE FROM secure_provider_credentials WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete secure credentials: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return types.ErrDomainNotFound
+	}
+
+	return nil
+}
+
 // User and session repository methods
 
 // CreateUser creates a new user
