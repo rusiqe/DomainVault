@@ -43,6 +43,15 @@ func TestNewClient(t *testing.T) {
 			wantType: "*providers.NamecheapClient",
 		},
 		{
+			name:     "create hostinger client",
+			provider: "hostinger",
+			creds: ProviderCredentials{
+				"api_key": "test-key",
+			},
+			wantErr:  nil,
+			wantType: "*providers.HostingerClient",
+		},
+		{
 			name:     "unsupported provider",
 			provider: "unsupported",
 			creds:    ProviderCredentials{},
@@ -154,6 +163,20 @@ func TestValidateCredentials(t *testing.T) {
 				"api_key": "test-key",
 			},
 			wantErr: types.ErrMissingConfig,
+		},
+		{
+			name:     "valid hostinger credentials",
+			provider: "hostinger",
+			creds: ProviderCredentials{
+				"api_key": "test-key",
+			},
+			wantErr: nil,
+		},
+		{
+			name:     "hostinger missing api_key",
+			provider: "hostinger",
+			creds:    ProviderCredentials{},
+			wantErr:  types.ErrMissingConfig,
 		},
 		{
 			name:     "mock credentials (no validation)",

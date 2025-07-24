@@ -26,6 +26,8 @@ func NewClient(provider string, creds ProviderCredentials) (RegistrarClient, err
 		return NewGoDaddyClient(creds)
 	case "namecheap":
 		return NewNamecheapClient(creds)
+	case "hostinger":
+		return NewHostingerClient(creds)
 	case "mock":
 		return NewMockClient(creds)
 	default:
@@ -48,6 +50,10 @@ func ValidateCredentials(provider string, creds ProviderCredentials) error {
 			return types.ErrMissingConfig
 		}
 		if _, ok := creds["username"]; !ok {
+			return types.ErrMissingConfig
+		}
+	case "hostinger":
+		if _, ok := creds["api_key"]; !ok {
 			return types.ErrMissingConfig
 		}
 	case "mock":
