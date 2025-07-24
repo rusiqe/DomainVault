@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/rusiqe/domainvault/internal/config"
 	"github.com/rusiqe/domainvault/internal/types"
@@ -282,17 +281,17 @@ func (s *Service) BulkCreateMonitors(request *types.UptimeRobotMonitorRequest) (
 	}
 
 	// Convert monitor type string to enum
-	var monitorType MonitorType
-	switch strings.ToLower(request.MonitorType) {
-	case "http", "https":
-		monitorType = MonitorTypeHTTP
-	case "ping":
-		monitorType = MonitorTypePing
-	case "keyword":
-		monitorType = MonitorTypeKeyword
-	default:
-		monitorType = MonitorTypeHTTP // Default to HTTP
-	}
+	// var monitorType MonitorType
+	// switch strings.ToLower(request.MonitorType) {
+	// case "http", "https":
+	// 	monitorType = MonitorTypeHTTP
+	// case "ping":
+	// 	monitorType = MonitorTypePing
+	// case "keyword":
+	// 	monitorType = MonitorTypeKeyword
+	// default:
+	// 	monitorType = MonitorTypeHTTP // Default to HTTP
+	// }
 
 	// Process each domain ID (in a real implementation, you'd fetch domain data from repository)
 	for _, domainID := range request.DomainIDs {

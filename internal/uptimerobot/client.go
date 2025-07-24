@@ -1,7 +1,6 @@
 package uptimerobot
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"

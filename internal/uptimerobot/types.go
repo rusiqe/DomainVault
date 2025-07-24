@@ -62,8 +62,8 @@ const (
 
 // ResponseTime represents response time data
 type ResponseTime struct {
-	DatetimeISO string `json:"datetime"`
-	Value       int    `json:"value"`
+	DatetimeISO interface{} `json:"datetime"` // Can be string or number
+	Value       int         `json:"value"`
 }
 
 // MonitorLog represents monitor log entry
@@ -77,8 +77,8 @@ type MonitorLog struct {
 
 // Reason represents the reason for status change
 type Reason struct {
-	Code   string `json:"code"`
-	Detail string `json:"detail"`
+	Code   interface{} `json:"code"` // Can be string or number depending on the API response
+	Detail string      `json:"detail"`
 }
 
 // AlertContact represents an alert contact

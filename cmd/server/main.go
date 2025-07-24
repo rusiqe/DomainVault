@@ -16,6 +16,7 @@ import (
 	"github.com/rusiqe/domainvault/internal/providers"
 	"github.com/rusiqe/domainvault/internal/security"
 	"github.com/rusiqe/domainvault/internal/storage"
+	"github.com/rusiqe/domainvault/internal/uptimerobot"
 )
 
 func main() {
@@ -100,8 +101,11 @@ func main() {
 		log.Printf("Warning: Failed to create default admin user: %v", err)
 	}
 
+	// Initialize UptimeRobot service
+	uptimeRobotSvc := uptimerobot.NewService(cfg.UptimeRobot)
+
 	// Initialize API handlers
-	handler := api.NewDomainHandler(repo, syncSvc)
+	handler := api.NewDomainHandler(repo, syncSvc, uptimeRobotSvc)
 	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
 
 	// Setup Gin router

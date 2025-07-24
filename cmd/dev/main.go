@@ -9,12 +9,14 @@ import (
 	"github.com/rusiqe/domainvault/internal/analytics"
 	"github.com/rusiqe/domainvault/internal/api"
 	"github.com/rusiqe/domainvault/internal/auth"
+	"github.com/rusiqe/domainvault/internal/config"
 	"github.com/rusiqe/domainvault/internal/core"
 	"github.com/rusiqe/domainvault/internal/dns"
 	"github.com/rusiqe/domainvault/internal/notifications"
 	"github.com/rusiqe/domainvault/internal/providers"
 	"github.com/rusiqe/domainvault/internal/security"
 	"github.com/rusiqe/domainvault/internal/types"
+	"github.com/rusiqe/domainvault/internal/uptimerobot"
 )
 
 // InMemoryRepo implements DomainRepository for development
@@ -410,8 +412,26 @@ func main() {
 		}
 	}()
 
+	// Load configuration (including UptimeRobot if available)
+	cfg, err := config.Load()
+	if err != nil {
+		log.Printf("Warning: Failed to load full configuration: %v", err)
+		// Continue with nil config for UptimeRobot
+		cfg = &config.Config{UptimeRobot: nil}
+	}
+
+	// Initialize UptimeRobot service (will be disabled if no API key)
+	uptimeRobotSvc := uptimerobot.NewService(cfg.UptimeRobot)
+	
+	// Print UptimeRobot status
+	if uptimeRobotSvc.IsConfigured() {
+		fmt.Println("🔍 UptimeRobot monitoring enabled")
+	} else {
+		fmt.Println("⚠️  UptimeRobot monitoring disabled (no API key configured)")
+	}
+
 	// Initialize API handlers
-	handler := api.NewDomainHandler(repo, syncSvc)
+	handler := api.NewDomainHandler(repo, syncSvc, uptimeRobotSvc)
 	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
 
 	// Setup Gin router
