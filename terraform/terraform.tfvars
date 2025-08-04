@@ -1,0 +1,91 @@
+# Example Terraform variables file
+# Copy this to terraform.tfvars and update with your actual values
+
+# UptimeRobot API key (get from https://uptimerobot.com/dashboard/settings/)
+uptimerobot_api_key = "u3043418-68fc775e8c6f5592e95cd68e"
+
+# Environment
+environment = "prod"
+
+# Default monitoring interval (in seconds)
+# Free accounts are limited to 300 seconds (5 minutes)
+# Paid accounts can use: 60, 120, 300, 600, 900, 1800, 3600
+default_monitor_interval = 300
+
+# Alert contact emails (must match friendly names in UptimeRobot)
+alert_contact_emails = [
+  "rusiqe@gmail.com"
+]
+
+# Domains to monitor
+domains_to_monitor = {
+  # Hostinger domains from DomainVault database
+  "content-dao-xyz" = {
+    name         = "DomainVault - content-dao.xyz"
+    url          = "https://content-dao.xyz"
+    monitor_type = "http"
+    interval     = 300
+    enabled      = true
+    ssl_check    = true
+  }
+  
+  "atozpolandmoves-com" = {
+    name         = "DomainVault - atozpolandmoves.com"
+    url          = "https://atozpolandmoves.com"
+    monitor_type = "http"
+    interval     = 300
+    enabled      = true
+    ssl_check    = true
+  }
+  
+  "zurioasiselite-icu" = {
+    name         = "DomainVault - zurioasiselite.icu"
+    url          = "https://zurioasiselite.icu"
+    monitor_type = "http"
+    interval     = 300
+    enabled      = true
+    ssl_check    = true
+  }
+  
+  "relationswithdevs-xyz" = {
+    name         = "DomainVault - relationswithdevs.xyz"
+    url          = "https://relationswithdevs.xyz"
+    monitor_type = "http"
+    interval     = 300
+    enabled      = true
+    ssl_check    = true
+  }
+}
+
+# Maintenance windows (optional)
+maintenance_windows = {
+  "weekly_maintenance" = {
+    friendly_name = "Weekly Maintenance"
+    type         = 1  # Weekly
+    value        = "2" # Sunday (0=Sunday, 1=Monday, etc.)
+    start_time   = "02:00"
+    duration     = 120 # 2 hours
+  }
+}
+
+# Notification groups
+notification_groups = {
+  critical = {
+    name = "Critical Production Domains"
+    alert_contacts = ["rusiqe@gmail.com"]
+    description = "High priority domains requiring immediate attention"
+  }
+  
+  standard = {
+    name = "Standard Domains"
+    alert_contacts = ["rusiqe@gmail.com"]
+    description = "Regular monitoring domains"
+  }
+}
+
+# SSL monitoring
+auto_ssl_monitoring = true
+
+# Thresholds
+response_time_threshold = 5000  # 5 seconds
+uptime_threshold = 99.5         # 99.5%

@@ -82,6 +82,9 @@ func main() {
 	// Initialize services
 	authSvc := auth.NewAuthService(repo)
 	dnsSvc := dns.NewDNSService(repo)
+	
+	// Configure sync service to use DNS service
+	syncSvc.SetDNSService(dnsSvc)
 
 	// Initialize enhanced services
 	analyticsSvc := analytics.NewAnalyticsService(repo)
@@ -122,12 +125,12 @@ func main() {
 		log.Printf("Warning: Failed to create default admin user: %v", err)
 	}
 
-	// Initialize UptimeRobot service
-	uptimeRobotSvc := uptimerobot.NewService(cfg.UptimeRobot)
+// Initialize UptimeRobot service - DISABLED for Terraform
+// uptimeRobotSvc := uptimerobot.NewService(cfg.UptimeRobot)
 
-	// Initialize API handlers
-	handler := api.NewDomainHandler(repo, syncSvc, uptimeRobotSvc)
-	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
+// Initialize API handlers (with UptimeRobot removed for Terraform)
+handler := api.NewDomainHandler(repo, syncSvc, nil)
+adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
 
 	// Setup Gin router
 	r := gin.Default()
