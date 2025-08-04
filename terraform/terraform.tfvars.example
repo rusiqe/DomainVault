@@ -2,7 +2,7 @@
 # Copy this to terraform.tfvars and update with your actual values
 
 # UptimeRobot API key (get from https://uptimerobot.com/dashboard/settings/)
-uptimerobot_api_key = "u3043418-68fc775e8c6f5592e95cd68e"
+uptimerobot_api_key = "your_uptimerobot_api_key_here"
 
 # Environment
 environment = "prod"
@@ -14,42 +14,15 @@ default_monitor_interval = 300
 
 # Alert contact emails (must match friendly names in UptimeRobot)
 alert_contact_emails = [
-  "rusiqe@gmail.com"
+  "your-email@example.com"
 ]
 
 # Domains to monitor
 domains_to_monitor = {
-  # Hostinger domains from DomainVault database
-  "content-dao-xyz" = {
-    name         = "DomainVault - content-dao.xyz"
-    url          = "https://content-dao.xyz"
-    monitor_type = "http"
-    interval     = 300
-    enabled      = true
-    ssl_check    = true
-  }
-  
-  "atozpolandmoves-com" = {
-    name         = "DomainVault - atozpolandmoves.com"
-    url          = "https://atozpolandmoves.com"
-    monitor_type = "http"
-    interval     = 300
-    enabled      = true
-    ssl_check    = true
-  }
-  
-  "zurioasiselite-icu" = {
-    name         = "DomainVault - zurioasiselite.icu"
-    url          = "https://zurioasiselite.icu"
-    monitor_type = "http"
-    interval     = 300
-    enabled      = true
-    ssl_check    = true
-  }
-  
-  "relationswithdevs-xyz" = {
-    name         = "DomainVault - relationswithdevs.xyz"
-    url          = "https://relationswithdevs.xyz"
+  # Example domain configuration
+  "example-domain" = {
+    name         = "DomainVault - example.com"
+    url          = "https://example.com"
     monitor_type = "http"
     interval     = 300
     enabled      = true
@@ -72,13 +45,13 @@ maintenance_windows = {
 notification_groups = {
   critical = {
     name = "Critical Production Domains"
-    alert_contacts = ["rusiqe@gmail.com"]
+    alert_contacts = ["your-email@example.com"]
     description = "High priority domains requiring immediate attention"
   }
   
   standard = {
     name = "Standard Domains"
-    alert_contacts = ["rusiqe@gmail.com"]
+    alert_contacts = ["your-email@example.com"]
     description = "Regular monitoring domains"
   }
 }

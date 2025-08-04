@@ -123,6 +123,17 @@ node_modules/
 vendor/
 
 # ================================
+# TERRAFORM SENSITIVE FILES
+# ================================
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+*.tfplan
+*.tfplan.json
+
+# ================================
 # UPTIMEROBOT SPECIFIC
 # ================================
 # Monitor configuration backups
