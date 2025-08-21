@@ -14,8 +14,9 @@ type DomainRepository interface {
 	GetByID(id string) (*types.Domain, error)
 	GetByFilter(filter types.DomainFilter) ([]types.Domain, error)
 	GetDomainsByName(name string) ([]types.Domain, error)
-	Delete(id string) error
+	Delete(id string) error // Soft delete: sets visible=false
 	Update(domain *types.Domain) error
+	SetVisibility(id string, visible bool) error
 	
 	// Utility operations
 	GetExpiring(threshold time.Duration) ([]types.Domain, error)

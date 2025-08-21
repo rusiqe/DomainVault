@@ -132,7 +132,7 @@ curl http://localhost:8080/api/v1/admin/domains/{id}/dns \
 - **Account Management**: Associate providers with specific account names
 
 ### Facebook-inspired Admin Interface
-- **Professional UI Design**: Complete redesign of `web/admin-enhanced.html`
+- **Professional UI Design**: Complete redesign of the admin interface (`web/admin.html`)
 - **Sidebar Navigation**: Intuitive menu system with sections (Dashboard, Domains, Providers, DNS, Analytics)
 - **Modal Dialogs**: Smooth user interactions for forms and confirmations
 - **Dynamic Content**: Real-time updates and data visualization

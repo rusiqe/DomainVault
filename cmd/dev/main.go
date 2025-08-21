@@ -357,6 +357,67 @@ func (r *InMemoryRepo) DeleteCredentials(id string) error {
 	return nil
 }
 
+// Secure credentials methods (in-memory mock implementations)
+func (r *InMemoryRepo) CreateSecureCredentials(creds *types.SecureProviderCredentials) error {
+	return nil
+}
+
+func (r *InMemoryRepo) GetAllSecureCredentials() ([]types.SecureProviderCredentials, error) {
+	return []types.SecureProviderCredentials{
+		{
+			ID:                  "mock-1",
+			Provider:            "mock",
+			Name:                "Mock Secure Credentials",
+			CredentialReference: "MOCK_DEFAULT",
+			Enabled:             true,
+			ConnectionStatus:    "connected",
+		},
+	}, nil
+}
+
+func (r *InMemoryRepo) GetSecureCredentialsByID(id string) (*types.SecureProviderCredentials, error) {
+	return &types.SecureProviderCredentials{
+		ID:                  id,
+		Provider:            "mock",
+		Name:                "Mock Secure Credentials",
+		CredentialReference: "MOCK_DEFAULT",
+		Enabled:             true,
+		ConnectionStatus:    "connected",
+	}, nil
+}
+
+func (r *InMemoryRepo) GetSecureCredentialsByProvider(provider string) ([]types.SecureProviderCredentials, error) {
+	return []types.SecureProviderCredentials{
+		{
+			ID:                  "provider-1",
+			Provider:            provider,
+			Name:                "Mock Secure Credentials",
+			CredentialReference: "MOCK_DEFAULT",
+			Enabled:             true,
+			ConnectionStatus:    "connected",
+		},
+	}, nil
+}
+
+func (r *InMemoryRepo) GetSecureCredentialsByReference(reference string) (*types.SecureProviderCredentials, error) {
+	return &types.SecureProviderCredentials{
+		ID:                  "ref-1",
+		Provider:            "mock",
+		Name:                "Mock Secure Credentials",
+		CredentialReference: reference,
+		Enabled:             true,
+		ConnectionStatus:    "connected",
+	}, nil
+}
+
+func (r *InMemoryRepo) UpdateSecureCredentials(creds *types.SecureProviderCredentials) error {
+	return nil
+}
+
+func (r *InMemoryRepo) DeleteSecureCredentials(id string) error {
+	return nil
+}
+
 func main() {
 	fmt.Println("🚀 DomainVault Development Server")
 	fmt.Println("=====================================")
@@ -432,7 +493,7 @@ func main() {
 
 	// Initialize API handlers
 	handler := api.NewDomainHandler(repo, syncSvc, uptimeRobotSvc)
-	adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
+adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc, uptimeRobotSvc)
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -563,7 +624,7 @@ func main() {
 	// Start server
 	fmt.Printf("🌐 Starting server on http://localhost:8080\n")
 	fmt.Printf("📝 Visit http://localhost:8080 for the development interface\n")
-	fmt.Printf("🔐 Admin panel available at http://localhost:8080/admin\n")
+	fmt.Printf("🔐 Admin panel (enhanced) available at http://localhost:8080/admin\n")
 	fmt.Printf("🔑 Admin credentials: admin / admin123\n")
 	fmt.Printf("🔗 API available at http://localhost:8080/api/v1/\n\n")
 

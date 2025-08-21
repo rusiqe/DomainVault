@@ -315,3 +315,19 @@ type BulkMonitoringResponse struct {
 	TotalCreated int                `json:"total_created"`
 	TotalFailed  int                `json:"total_failed"`
 }
+
+// GetMonitorLogsRequest represents a request to get monitor logs
+type GetMonitorLogsRequest struct {
+	MonitorIDs []int  `json:"monitors"`
+	Limit      int    `json:"limit,omitempty"`
+	Offset     int    `json:"offset,omitempty"`
+	StartDate  int    `json:"start_date,omitempty"`
+	EndDate    int    `json:"end_date,omitempty"`
+	Timezone   string `json:"timezone,omitempty"`
+}
+
+// GetMonitorLogsResponse represents the response for getting monitor logs
+type GetMonitorLogsResponse struct {
+	APIResponse
+	Logs []MonitorLog `json:"logs"`
+}

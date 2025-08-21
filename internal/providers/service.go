@@ -18,6 +18,29 @@ type ProviderService struct {
 	mu                 sync.RWMutex
 }
 
+// RegisterClient registers an already-created client under a provider name.
+// This is useful for wiring providers from environment at app startup without interactive connect.
+func (ps *ProviderService) RegisterClient(providerName string, client RegistrarClient) *ConnectedProvider {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	cp := &ConnectedProvider{
+		ID:               generateID(),
+		Provider:         providerName,
+		Name:             providerName,
+		AccountName:      providerName,
+		Credentials:      ProviderCredentials{"env": true},
+		Client:           client,
+		Enabled:          true,
+		AutoSyncEnabled:  false,
+		SyncInterval:     24 * time.Hour,
+		ConnectionStatus: "connected",
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+	}
+	ps.connectedProviders[cp.ID] = cp
+	return cp
+}
+
 // ConnectedProvider represents a connected provider with its credentials
 type ConnectedProvider struct {
 	ID               string
@@ -172,6 +195,22 @@ func initializeSupportedProviders() map[string]types.ProviderInfo {
 				},
 			},
 		},
+		"cloudflare": {
+			Name:        "cloudflare",
+			DisplayName: "Cloudflare DNS",
+			Description: "Cloudflare DNS (read-only for fetching DNS records)",
+			DocumentationURL: "https://api.cloudflare.com/",
+			Fields: []types.ProviderFieldInfo{
+				{
+					Name:        "api_token",
+					DisplayName: "API Token",
+					Type:        "password",
+					Required:    true,
+					Description: "Cloudflare API token with Zone:Read and DNS:Read",
+					Placeholder: "cf_api_token_with_dns_read",
+				},
+			},
+		},
 		"namecheap": {
 			Name:        "namecheap",
 			DisplayName: "Namecheap",
@@ -201,30 +240,6 @@ func initializeSupportedProviders() map[string]types.ProviderInfo {
 					Required:    false,
 					Description: "Your server IP address (for API whitelisting)",
 					Placeholder: "192.168.1.100",
-				},
-			},
-		},
-		"cloudflare": {
-			Name:        "cloudflare",
-			DisplayName: "Cloudflare Registrar",
-			Description: "Cloudflare's registrar service with at-cost pricing",
-			DocumentationURL: "https://developers.cloudflare.com/registrar/",
-			Fields: []types.ProviderFieldInfo{
-				{
-					Name:        "api_token",
-					DisplayName: "API Token",
-					Type:        "password",
-					Required:    true,
-					Description: "Your Cloudflare API token with Registrar permissions",
-					Placeholder: "1234567890abcdef1234567890abcdef12345678",
-				},
-				{
-					Name:        "account_id",
-					DisplayName: "Account ID",
-					Type:        "text",
-					Required:    true,
-					Description: "Your Cloudflare account ID",
-					Placeholder: "1234567890abcdef1234567890abcdef",
 				},
 			},
 		},
@@ -379,7 +394,19 @@ func (ps *ProviderService) GetConnectedProviders() []*ConnectedProvider {
 	for _, provider := range ps.connectedProviders {
 		providers = append(providers, provider)
 	}
-	return providers
+return providers
+}
+
+// GetClientByProviderName returns the first connected client for a given provider name
+func (ps *ProviderService) GetClientByProviderName(name string) (RegistrarClient, bool) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, cp := range ps.connectedProviders {
+		if cp.Enabled && cp.Provider == name && cp.Client != nil {
+			return cp.Client, true
+		}
+	}
+	return nil, false
 }
 
 // GetConnectedProvider returns a specific connected provider

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/rusiqe/domainvault/internal/config"
 	"github.com/rusiqe/domainvault/internal/types"
@@ -412,6 +413,32 @@ func (s *Service) UpdateConfig(cfg *config.UptimeRobotConfig) error {
 	return nil
 }
 
+// GetMonitoringStats returns overall monitoring statistics
+func (s *Service) GetMonitoringStats() (map[string]interface{}, error) {
+	if !s.isConfigured {
+		return map[string]interface{}{
+			"configured": false,
+			"message": "UptimeRobot is not configured",
+		}, nil
+	}
+
+	// Mock mode
+	if s.client == nil {
+		return map[string]interface{}{
+			"configured": true,
+			"mock_mode": true,
+			"total_monitors": 4,
+			"up_monitors": 3,
+			"down_monitors": 1,
+			"paused_monitors": 0,
+			"average_uptime": 98.5,
+			"average_response_time": 250,
+		}, nil
+	}
+
+	return s.GetMonitoringMetrics()
+}
+
 // GetMonitoringMetrics retrieves aggregated monitoring metrics
 func (s *Service) GetMonitoringMetrics() (map[string]interface{}, error) {
 	if !s.isConfigured {
@@ -500,6 +527,209 @@ func (s *Service) extractDomainFromURL(url string) string {
 	}
 	
 	return domain
+}
+
+
+// GetMonitors returns all UptimeRobot monitors
+func (s *Service) GetMonitors() ([]Monitor, error) {
+	if !s.isConfigured {
+		return nil, fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		return []Monitor{
+			{
+				ID: 12345,
+				FriendlyName: "DomainVault - example.com",
+				URL: "https://example.com",
+				Type: MonitorTypeHTTP,
+				Status: MonitorStatusUp,
+				Interval: 300,
+				CreateDatetime: 1640995200, // Unix timestamp
+			},
+		}, nil
+	}
+
+	return s.GetAllMonitors(true)
+}
+
+// SyncMonitors synchronizes UptimeRobot monitor data with the database
+func (s *Service) SyncMonitors() error {
+	if !s.isConfigured {
+		return fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		// Mock sync always succeeds
+		return nil
+	}
+
+	// In a real implementation, this would:
+	// 1. Fetch all monitors from UptimeRobot
+	// 2. Update domain records with monitoring data
+	// 3. Clean up orphaned monitors
+	// For now, just validate the connection
+	return s.TestConnection()
+}
+
+// CreateMonitor creates a new UptimeRobot monitor
+func (s *Service) CreateMonitor(url string, monitorType MonitorType, name string, interval int) (*Monitor, error) {
+	if !s.isConfigured {
+		return nil, fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Use default interval if not specified
+	if interval == 0 {
+		if s.config.Interval > 0 {
+			interval = s.config.Interval
+		} else {
+			interval = DefaultInterval
+		}
+	}
+
+	// Use default name if not specified
+	if name == "" {
+		name = fmt.Sprintf("DomainVault - %s", url)
+	}
+
+	// Mock mode
+	if s.client == nil {
+		return &Monitor{
+			ID: 12346, // Mock ID
+			FriendlyName: name,
+			URL: url,
+			Type: monitorType,
+			Status: MonitorStatusUp,
+			Interval: interval,
+			CreateDatetime: time.Now().Unix(),
+		}, nil
+	}
+
+	// Create monitor using appropriate method based on type
+	var resp *CreateMonitorResponse
+	var err error
+
+	switch monitorType {
+	case MonitorTypeHTTP:
+		resp, err = s.client.CreateHTTPMonitor(url, name, interval, s.config.AlertContacts)
+	case MonitorTypePing:
+		resp, err = s.client.CreatePingMonitor(url, name, interval, s.config.AlertContacts)
+	default:
+		return nil, fmt.Errorf("unsupported monitor type: %d", monitorType)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a Monitor object from the response
+	monitor := &Monitor{
+		ID: resp.Monitor.ID,
+		FriendlyName: name,
+		URL: url,
+		Type: monitorType,
+		Status: MonitorStatus(resp.Monitor.Status),
+		Interval: interval,
+		CreateDatetime: time.Now().Unix(),
+	}
+
+	return monitor, nil
+}
+
+// UpdateMonitor updates an existing UptimeRobot monitor
+func (s *Service) UpdateMonitor(monitorID int, updates map[string]interface{}) error {
+	if !s.isConfigured {
+		return fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		// Mock update always succeeds
+		return nil
+	}
+
+	req := &UpdateMonitorRequest{
+		ID: monitorID,
+	}
+
+	// Parse updates
+	if friendlyName, ok := updates["friendly_name"].(string); ok {
+		req.FriendlyName = friendlyName
+	}
+	if url, ok := updates["url"].(string); ok {
+		req.URL = url
+	}
+	if interval, ok := updates["interval"].(int); ok {
+		req.Interval = interval
+	}
+	if alertContacts, ok := updates["alert_contacts"].([]string); ok {
+		req.AlertContacts = alertContacts
+	}
+
+	_, err := s.client.UpdateMonitor(req)
+	return err
+}
+
+// DeleteMonitor deletes a UptimeRobot monitor
+func (s *Service) DeleteMonitor(monitorID int) error {
+	if !s.isConfigured {
+		return fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		// Mock delete always succeeds
+		return nil
+	}
+
+	return s.DeleteMonitorForDomain(monitorID)
+}
+
+// GetMonitorLogs retrieves logs for a specific monitor
+func (s *Service) GetMonitorLogs(monitorID int, limit int, offset int, startDate string, endDate string) ([]MonitorLog, error) {
+	if !s.isConfigured {
+		return nil, fmt.Errorf("UptimeRobot is not configured")
+	}
+
+	// Mock mode
+	if s.client == nil {
+		return []MonitorLog{
+			{
+				Type: 1, // Down
+				Datetime: time.Now().Add(-2 * time.Hour).Unix(),
+				Duration: 120, // 2 minutes
+				Reason: Reason{Code: "timeout", Detail: "Connection timeout"},
+			},
+			{
+				Type: 2, // Up
+				Datetime: time.Now().Add(-2 * time.Hour).Add(2 * time.Minute).Unix(),
+				Duration: 0,
+				Reason: Reason{Code: "200", Detail: "OK"},
+			},
+		}, nil
+	}
+
+	req := &GetMonitorLogsRequest{
+		MonitorIDs: []int{monitorID},
+		Limit: limit,
+		Offset: offset,
+	}
+
+	// Parse date filters if provided
+	if startDate != "" {
+		if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+			req.StartDate = int(startTime.Unix())
+		}
+	}
+	if endDate != "" {
+		if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+			req.EndDate = int(endTime.Unix())
+		}
+	}
+
+	return s.client.GetMonitorLogs(req)
 }
 
 // ValidateConfig validates UptimeRobot configuration

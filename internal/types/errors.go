@@ -8,6 +8,7 @@ var (
 	ErrInvalidProvider   = errors.New("invalid provider")
 	ErrDomainNotFound    = errors.New("domain not found")
 	ErrDomainExists      = errors.New("domain already exists")
+	ErrDNSRecordNotFound = errors.New("DNS record not found")
 )
 
 // Provider errors

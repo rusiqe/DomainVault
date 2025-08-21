@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/rusiqe/domainvault/internal/dns"
 	"github.com/rusiqe/domainvault/internal/providers"
 	"github.com/rusiqe/domainvault/internal/storage"
 	"github.com/rusiqe/domainvault/internal/types"
@@ -14,6 +15,7 @@ import (
 type SyncService struct {
 	providers map[string]providers.RegistrarClient
 	repo      storage.DomainRepository
+	dnsService *dns.DNSService
 	mu        sync.RWMutex // Protects providers map
 }
 
@@ -23,6 +25,11 @@ func NewSyncService(repo storage.DomainRepository) *SyncService {
 		providers: make(map[string]providers.RegistrarClient),
 		repo:      repo,
 	}
+}
+
+// SetDNSService sets the DNS service for DNS record synchronization
+func (s *SyncService) SetDNSService(dnsService *dns.DNSService) {
+	s.dnsService = dnsService
 }
 
 // AddProvider adds a registrar client to the sync service
@@ -135,6 +142,127 @@ func (s *SyncService) SyncProvider(providerName string) error {
 	}
 
 	log.Printf("Successfully synced %d domains from %s", len(domains), providerName)
+	return nil
+}
+
+// SyncDomainsWithDNS synchronizes domains and their DNS records from all providers
+func (s *SyncService) SyncDomainsWithDNS() error {
+	s.mu.RLock()
+	providerCount := len(s.providers)
+	s.mu.RUnlock()
+
+	if providerCount == 0 {
+		log.Println("No providers configured, skipping DNS sync")
+		return nil
+	}
+
+	if s.dnsService == nil {
+		log.Println("DNS service not configured, skipping DNS sync")
+		return s.Run() // Fall back to domain-only sync
+	}
+
+	log.Printf("Starting domains and DNS sync for %d providers", providerCount)
+
+	// First, sync domains
+	if err := s.Run(); err != nil {
+		return fmt.Errorf("failed to sync domains: %w", err)
+	}
+
+	// Then, sync DNS records for each domain
+	domains, err := s.repo.GetAll()
+	if err != nil {
+		return fmt.Errorf("failed to get domains for DNS sync: %w", err)
+	}
+
+	for _, domain := range domains {
+		if err := s.syncDomainDNS(domain); err != nil {
+			log.Printf("Failed to sync DNS for domain %s: %v", domain.Name, err)
+			// Continue with other domains even if one fails
+		}
+	}
+
+	log.Printf("Completed DNS sync for %d domains", len(domains))
+	return nil
+}
+
+// SyncProviderWithDNS synchronizes domains and DNS records from a specific provider
+func (s *SyncService) SyncProviderWithDNS(providerName string) error {
+	s.mu.RLock()
+	client, exists := s.providers[providerName]
+	s.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("provider %s not found", providerName)
+	}
+
+	if s.dnsService == nil {
+		log.Println("DNS service not configured, falling back to domain-only sync")
+		return s.SyncProvider(providerName)
+	}
+
+	log.Printf("Starting domains and DNS sync for provider: %s", providerName)
+
+	// First, sync domains
+	if err := s.SyncProvider(providerName); err != nil {
+		return fmt.Errorf("failed to sync domains from %s: %w", providerName, err)
+	}
+
+	// Then, sync DNS records for domains from this provider
+	domains, err := s.repo.GetByFilter(types.DomainFilter{Provider: providerName})
+	if err != nil {
+		return fmt.Errorf("failed to get domains for DNS sync from %s: %w", providerName, err)
+	}
+
+	for _, domain := range domains {
+		if err := s.syncDomainDNSWithClient(domain, client); err != nil {
+			log.Printf("Failed to sync DNS for domain %s: %v", domain.Name, err)
+			// Continue with other domains even if one fails
+		}
+	}
+
+	log.Printf("Completed DNS sync for %d domains from %s", len(domains), providerName)
+	return nil
+}
+
+// syncDomainDNS synchronizes DNS records for a specific domain using its provider
+func (s *SyncService) syncDomainDNS(domain types.Domain) error {
+	s.mu.RLock()
+	client, exists := s.providers[domain.Provider]
+	s.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("provider %s not found for domain %s", domain.Provider, domain.Name)
+	}
+
+	return s.syncDomainDNSWithClient(domain, client)
+}
+
+// syncDomainDNSWithClient synchronizes DNS records for a domain using the specified client
+func (s *SyncService) syncDomainDNSWithClient(domain types.Domain, client providers.RegistrarClient) error {
+	log.Printf("Syncing DNS records for domain: %s", domain.Name)
+
+	// Fetch DNS records from provider
+	dnsRecords, err := client.FetchDNSRecords(domain.Name)
+	if err != nil {
+		return fmt.Errorf("failed to fetch DNS records for %s: %w", domain.Name, err)
+	}
+
+	if len(dnsRecords) == 0 {
+		log.Printf("No DNS records found for domain %s", domain.Name)
+		return nil
+	}
+
+	// Set domain ID for all records
+	for i := range dnsRecords {
+		dnsRecords[i].DomainID = domain.ID
+	}
+
+	// Replace all DNS records for this domain
+	if err := s.dnsService.BulkUpdateRecords(domain.ID, dnsRecords); err != nil {
+		return fmt.Errorf("failed to store DNS records for %s: %w", domain.Name, err)
+	}
+
+	log.Printf("Successfully synced %d DNS records for domain %s", len(dnsRecords), domain.Name)
 	return nil
 }
 

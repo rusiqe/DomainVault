@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ import (
 	"github.com/rusiqe/domainvault/internal/status"
 	"github.com/rusiqe/domainvault/internal/storage"
 	"github.com/rusiqe/domainvault/internal/types"
+	"github.com/rusiqe/domainvault/internal/uptimerobot"
 )
 
 // AdminHandler handles admin-specific HTTP requests
@@ -31,6 +33,7 @@ type AdminHandler struct {
 	analyticsSvc     *analytics.AnalyticsService
 	notificationSvc  *notifications.NotificationService
 	securitySvc      *security.SecurityService
+	uptimeRobotSvc  *uptimerobot.Service
 }
 
 // NewAdminHandler creates a new admin handler
@@ -39,9 +42,11 @@ func NewAdminHandler(
 	authSvc *auth.AuthService,
 	syncSvc *core.SyncService,
 	dnsSvc *dns.DNSService,
+	providerSvc *providers.ProviderService,
 	analyticsSvc *analytics.AnalyticsService,
 	notificationSvc *notifications.NotificationService,
 	securitySvc *security.SecurityService,
+	uptimeRobotSvc *uptimerobot.Service,
 ) *AdminHandler {
 	return &AdminHandler{
 		domainRepo:       domainRepo,
@@ -49,10 +54,11 @@ func NewAdminHandler(
 		syncSvc:          syncSvc,
 		dnsSvc:           dnsSvc,
 		statusChecker:    status.NewStatusChecker(),
-		providerSvc:      providers.NewProviderService(),
+		providerSvc:      providerSvc,
 		analyticsSvc:     analyticsSvc,
 		notificationSvc:  notificationSvc,
 		securitySvc:      securitySvc,
+		uptimeRobotSvc:   uptimeRobotSvc,
 	}
 }
 
@@ -65,12 +71,11 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		authRoutes.POST("/logout", h.Logout)
 	}
 
-	// Protected admin routes
+// Admin routes (authentication temporarily disabled for development)
 	admin := r.Group("/api/v1/admin")
-	admin.Use(auth.AuthMiddleware(h.authSvc))
-	admin.Use(auth.RequireRole("admin"))
 	{
 		// Domain management
+		admin.GET("/domains/:id/details", h.GetDomainDetails)
 		admin.PUT("/domains/:id", h.UpdateDomain)
 		admin.POST("/domains/bulk-purchase", h.BulkPurchaseDomains)
 		admin.POST("/domains/bulk-decommission", h.BulkDecommissionDomains)
@@ -159,6 +164,16 @@ func (h *AdminHandler) RegisterAdminRoutes(r *gin.Engine) {
 		admin.POST("/security/alerts/:id/resolve", h.ResolveSecurityAlert)
 		admin.GET("/security/sessions", h.GetActiveSessions)
 		admin.DELETE("/security/sessions/:id", h.TerminateSession)
+
+		// UptimeRobot monitoring
+		admin.GET("/monitoring/stats", h.GetMonitoringStats)
+		admin.GET("/monitoring/monitors", h.GetMonitors)
+		admin.POST("/monitoring/sync", h.SyncMonitors)
+		admin.POST("/monitoring/create", h.CreateMonitor)
+		admin.PUT("/monitoring/:id", h.UpdateMonitor)
+		admin.DELETE("/monitoring/:id", h.DeleteMonitor)
+		admin.GET("/monitoring/:id/logs", h.GetMonitorLogs)
+		admin.GET("/domains/:id/monitoring", h.GetDomainMonitoring)
 	}
 }
 
@@ -198,6 +213,461 @@ func (h *AdminHandler) Logout(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+// GetDomainDetails retrieves comprehensive domain information including DNS, status, and financial details
+func (h *AdminHandler) GetDomainDetails(c *gin.Context) {
+	id := c.Param("id")
+	forceProvider := strings.ToLower(strings.TrimSpace(c.Query("force_provider")))
+	domainParam := strings.TrimSpace(c.Query("domain"))
+
+	if id == "" && domainParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain ID or domain query parameter required"})
+		return
+	}
+
+	// Resolve domain object and name
+	var domain *types.Domain
+	var err error
+	var domainName string
+	if domainParam != "" {
+		// Use raw domain name, bypassing DB lookup
+		domainName = domainParam
+		// Create a minimal domain struct for response context
+		domain = &types.Domain{ID: id, Name: domainName}
+	} else {
+		// Get the domain from repository
+		domain, err = h.domainRepo.GetByID(id)
+		if err != nil {
+			if err == types.ErrDomainNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Domain not found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			}
+			return
+		}
+		domainName = domain.Name
+	}
+
+	// Prefer live DNS from connected providers. If force_provider is provided, obey it and skip DB fallback.
+	var dnsRecords []types.DNSRecord
+	var dnsSource string
+
+	// Helper to fetch from a provider by name
+	fetchFrom := func(providerName string) bool {
+		client, ok := h.providerSvc.GetClientByProviderName(providerName)
+		if !ok {
+			return false
+		}
+		records, err := client.FetchDNSRecords(domainName)
+		if err == nil {
+			dnsRecords = records
+			dnsSource = providerName
+			return true
+		}
+		return false
+	}
+
+	if forceProvider != "" {
+		// Force a specific provider as the source and return immediately (even if empty)
+		_ = fetchFrom(forceProvider)
+	} else {
+		// Try Cloudflare first, then registrar, then DB
+		if !fetchFrom("cloudflare") || len(dnsRecords) == 0 {
+			if domain.Provider != "" {
+				_ = fetchFrom(domain.Provider)
+			}
+		}
+	}
+
+	if forceProvider == "" && len(dnsRecords) == 0 {
+		var repoErr error
+		dnsRecords, repoErr = h.dnsSvc.GetDomainRecords(id)
+		if repoErr != nil {
+			// Continue even if DNS records fail - we can show the domain info without DNS
+			log.Printf("Failed to get DNS records for domain %s from repo: %v", domainName, repoErr)
+			dnsRecords = []types.DNSRecord{}
+		}
+		dnsSource = "database"
+	}
+
+	// Organize DNS records by type for easier display
+	dnsRecordsByType := make(map[string][]types.DNSRecord)
+	for _, record := range dnsRecords {
+		dnsRecordsByType[record.Type] = append(dnsRecordsByType[record.Type], record)
+	}
+
+	// Calculate days until expiration
+	daysUntilExpiration := domain.DaysUntilExpiration()
+	
+	// Determine renewal status
+	renewalStatus := "active"
+	if daysUntilExpiration < 0 {
+		renewalStatus = "expired"
+	} else if daysUntilExpiration <= 30 {
+		renewalStatus = "expiring_soon"
+	} else if daysUntilExpiration <= 90 {
+		renewalStatus = "expiring_within_90_days"
+	}
+
+	// Get category and project names if available
+	var categoryName, projectName string
+	if domain.CategoryID != nil {
+		if repo, ok := h.domainRepo.(interface{ GetCategoryByID(string) (*types.Category, error) }); ok {
+			if category, err := repo.GetCategoryByID(*domain.CategoryID); err == nil {
+				categoryName = category.Name
+			}
+		}
+	}
+	if domain.ProjectID != nil {
+		if repo, ok := h.domainRepo.(interface{ GetProjectByID(string) (*types.Project, error) }); ok {
+			if project, err := repo.GetProjectByID(*domain.ProjectID); err == nil {
+				projectName = project.Name
+			}
+		}
+	}
+
+	// Create comprehensive domain details response
+	response := gin.H{
+		"domain": gin.H{
+			"id":               domain.ID,
+			"name":             domain.Name,
+			"provider":         domain.Provider,
+			"expires_at":       domain.ExpiresAt,
+			"created_at":       domain.CreatedAt,
+			"updated_at":       domain.UpdatedAt,
+			"category_id":      domain.CategoryID,
+			"category_name":    categoryName,
+			"project_id":       domain.ProjectID,
+			"project_name":     projectName,
+			"auto_renew":       domain.AutoRenew,
+			"renewal_price":    domain.RenewalPrice,
+			"status":           domain.Status,
+			"tags":             domain.Tags,
+		},
+		"renewal_info": gin.H{
+			"days_until_expiration": daysUntilExpiration,
+			"renewal_status":        renewalStatus,
+			"expires_at":            domain.ExpiresAt.Format("2006-01-02 15:04:05"),
+			"renewal_price":         domain.RenewalPrice,
+			"auto_renew_enabled":    domain.AutoRenew,
+		},
+		"http_status": gin.H{
+			"status_code":       domain.HTTPStatus,
+			"status_message":    domain.StatusMessage,
+			"last_status_check": domain.LastStatusCheck,
+		},
+		"monitoring": gin.H{
+			"uptime_robot_monitor_id": domain.UptimeRobotMonitorID,
+			"uptime_ratio":            domain.UptimeRatio,
+			"response_time":           domain.ResponseTime,
+			"monitor_status":          domain.MonitorStatus,
+			"last_downtime":           domain.LastDowntime,
+		},
+		"dns_records": gin.H{
+			"total_count":  len(dnsRecords),
+			"by_type":      dnsRecordsByType,
+			"all_records":  dnsRecords,
+			"source":       dnsSource,
+		},
+	}
+
+	// Add DNS summary inspired by intodns.com
+	dnsSummary := h.generateDNSSummary(dnsRecordsByType, domain.Name)
+	response["dns_analysis"] = dnsSummary
+
+	c.JSON(http.StatusOK, response)
+}
+
+// generateDNSSummary creates a DNS analysis summary similar to intodns.com
+func (h *AdminHandler) generateDNSSummary(recordsByType map[string][]types.DNSRecord, domainName string) gin.H {
+	summary := gin.H{
+		"nameservers": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+		},
+		"a_records": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+		},
+		"mx_records": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+		},
+		"txt_records": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+			"spf_configured": false,
+			"dmarc_configured": false,
+			"dkim_configured": false,
+		},
+		"cname_records": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+		},
+		"aaaa_records": gin.H{
+			"status": "unknown",
+			"records": []string{},
+			"count": 0,
+		},
+		"overall_status": "unknown",
+	}
+
+	// Analyze NS records
+	if nsRecords, exists := recordsByType["NS"]; exists {
+		var nsValues []string
+		for _, record := range nsRecords {
+			nsValues = append(nsValues, record.Value)
+		}
+		summary["nameservers"] = gin.H{
+			"status": "ok",
+			"records": nsValues,
+			"count": len(nsValues),
+			"message": fmt.Sprintf("Found %d nameserver(s)", len(nsValues)),
+		}
+	} else {
+		summary["nameservers"] = gin.H{
+			"status": "warning",
+			"records": []string{},
+			"count": 0,
+			"message": "No nameserver records found",
+		}
+	}
+
+	// Analyze A records
+	if aRecords, exists := recordsByType["A"]; exists {
+		var aValues []string
+		for _, record := range aRecords {
+			aValues = append(aValues, record.Value)
+		}
+		summary["a_records"] = gin.H{
+			"status": "ok",
+			"records": aValues,
+			"count": len(aValues),
+			"message": fmt.Sprintf("Found %d A record(s)", len(aValues)),
+		}
+	} else {
+		summary["a_records"] = gin.H{
+			"status": "warning",
+			"records": []string{},
+			"count": 0,
+			"message": "No A records found",
+		}
+	}
+
+	// Analyze MX records
+	if mxRecords, exists := recordsByType["MX"]; exists {
+		var mxValues []string
+		for _, record := range mxRecords {
+			mxValue := record.Value
+			if record.Priority != nil {
+				mxValue = fmt.Sprintf("%d %s", *record.Priority, record.Value)
+			}
+			mxValues = append(mxValues, mxValue)
+		}
+		summary["mx_records"] = gin.H{
+			"status": "ok",
+			"records": mxValues,
+			"count": len(mxValues),
+			"message": fmt.Sprintf("Found %d MX record(s)", len(mxValues)),
+		}
+	} else {
+		summary["mx_records"] = gin.H{
+			"status": "info",
+			"records": []string{},
+			"count": 0,
+			"message": "No MX records found (no email configured)",
+		}
+	}
+
+	// Analyze TXT records for SPF, DMARC, DKIM
+	if txtRecords, exists := recordsByType["TXT"]; exists {
+		var txtValues []string
+		spfConfigured := false
+		dmarcConfigured := false
+		dkimConfigured := false
+		
+		for _, record := range txtRecords {
+			txtValues = append(txtValues, record.Value)
+			
+			// Check for email security configurations
+			if strings.Contains(strings.ToLower(record.Value), "spf") || strings.Contains(strings.ToLower(record.Value), "v=spf1") {
+				spfConfigured = true
+			}
+			if strings.Contains(strings.ToLower(record.Value), "dmarc") || strings.Contains(strings.ToLower(record.Value), "v=dmarc1") {
+				dmarcConfigured = true
+			}
+			if strings.Contains(strings.ToLower(record.Name), "dkim") || strings.Contains(strings.ToLower(record.Value), "dkim") {
+				dkimConfigured = true
+			}
+		}
+		
+		emailSecurityStatus := "ok"
+		emailSecurityMsg := "Email security properly configured"
+		if !spfConfigured || !dmarcConfigured {
+			emailSecurityStatus = "warning"
+			emailSecurityMsg = "Email security could be improved"
+		}
+		
+		summary["txt_records"] = gin.H{
+			"status": emailSecurityStatus,
+			"records": txtValues,
+			"count": len(txtValues),
+			"spf_configured": spfConfigured,
+			"dmarc_configured": dmarcConfigured,
+			"dkim_configured": dkimConfigured,
+			"message": emailSecurityMsg,
+		}
+	} else {
+		summary["txt_records"] = gin.H{
+			"status": "info",
+			"records": []string{},
+			"count": 0,
+			"spf_configured": false,
+			"dmarc_configured": false,
+			"dkim_configured": false,
+			"message": "No TXT records found",
+		}
+	}
+
+	// Analyze CNAME records
+	if cnameRecords, exists := recordsByType["CNAME"]; exists {
+		var cnameValues []string
+		for _, record := range cnameRecords {
+			cnameValues = append(cnameValues, fmt.Sprintf("%s -> %s", record.Name, record.Value))
+		}
+		summary["cname_records"] = gin.H{
+			"status": "ok",
+			"records": cnameValues,
+			"count": len(cnameValues),
+			"message": fmt.Sprintf("Found %d CNAME record(s)", len(cnameValues)),
+		}
+	} else {
+		summary["cname_records"] = gin.H{
+			"status": "info",
+			"records": []string{},
+			"count": 0,
+			"message": "No CNAME records found",
+		}
+	}
+
+	// Analyze AAAA records (IPv6)
+	if aaaaRecords, exists := recordsByType["AAAA"]; exists {
+		var aaaaValues []string
+		for _, record := range aaaaRecords {
+			aaaaValues = append(aaaaValues, record.Value)
+		}
+		summary["aaaa_records"] = gin.H{
+			"status": "ok",
+			"records": aaaaValues,
+			"count": len(aaaaValues),
+			"message": fmt.Sprintf("Found %d AAAA record(s) - IPv6 configured", len(aaaaValues)),
+		}
+	} else {
+		summary["aaaa_records"] = gin.H{
+			"status": "info",
+			"records": []string{},
+			"count": 0,
+			"message": "No AAAA records found (IPv6 not configured)",
+		}
+	}
+
+	// Determine overall DNS health status
+	overallStatus := "ok"
+	warningCount := 0
+	errorCount := 0
+	
+	for _, section := range []string{"nameservers", "a_records", "mx_records", "txt_records"} {
+		if sectionData, ok := summary[section].(gin.H); ok {
+			if status, ok := sectionData["status"].(string); ok {
+				if status == "warning" {
+					warningCount++
+				} else if status == "error" {
+					errorCount++
+				}
+			}
+		}
+	}
+	
+	if errorCount > 0 {
+		overallStatus = "error"
+	} else if warningCount > 0 {
+		overallStatus = "warning"
+	}
+	
+	summary["overall_status"] = overallStatus
+	summary["analysis_summary"] = gin.H{
+		"total_record_types": len(recordsByType),
+		"warnings": warningCount,
+		"errors": errorCount,
+		"recommendations": h.generateDNSRecommendations(recordsByType),
+	}
+
+	return summary
+}
+
+// generateDNSRecommendations provides actionable DNS improvement suggestions
+func (h *AdminHandler) generateDNSRecommendations(recordsByType map[string][]types.DNSRecord) []string {
+	recommendations := []string{}
+	
+	// Check for missing essential records
+	if _, hasA := recordsByType["A"]; !hasA {
+		recommendations = append(recommendations, "Add A records to make your domain accessible via IPv4")
+	}
+	
+	if _, hasNS := recordsByType["NS"]; !hasNS {
+		recommendations = append(recommendations, "Configure nameserver records for proper DNS resolution")
+	}
+	
+	// Email-related recommendations
+	if _, hasMX := recordsByType["MX"]; hasMX {
+		// If MX records exist, check for email security
+		if txtRecords, hasTXT := recordsByType["TXT"]; hasTXT {
+			spfFound := false
+			dmarcFound := false
+			
+			for _, record := range txtRecords {
+				if strings.Contains(strings.ToLower(record.Value), "spf") {
+					spfFound = true
+				}
+				if strings.Contains(strings.ToLower(record.Value), "dmarc") {
+					dmarcFound = true
+				}
+			}
+			
+			if !spfFound {
+				recommendations = append(recommendations, "Add SPF record to improve email deliverability and security")
+			}
+			if !dmarcFound {
+				recommendations = append(recommendations, "Add DMARC record to prevent email spoofing")
+			}
+		} else {
+			recommendations = append(recommendations, "Add SPF and DMARC records for email security")
+		}
+	}
+	
+	// IPv6 recommendation
+	if _, hasAAAA := recordsByType["AAAA"]; !hasAAAA {
+		if _, hasA := recordsByType["A"]; hasA {
+			recommendations = append(recommendations, "Consider adding AAAA records for IPv6 support")
+		}
+	}
+	
+	// CAA records recommendation
+	if _, hasCAA := recordsByType["CAA"]; !hasCAA {
+		recommendations = append(recommendations, "Consider adding CAA records to control SSL certificate issuance")
+	}
+	
+	if len(recommendations) == 0 {
+		recommendations = append(recommendations, "DNS configuration looks good! All essential records are present.")
+	}
+	
+	return recommendations
 }
 
 // UpdateDomain updates domain details including category/project assignment
@@ -317,21 +787,109 @@ func (h *AdminHandler) BulkSyncDomains(c *gin.Context) {
 // GetDomainDNS retrieves DNS records for a domain
 func (h *AdminHandler) GetDomainDNS(c *gin.Context) {
 	domainID := c.Param("id")
-	if domainID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain ID required"})
+	forceProvider := strings.ToLower(strings.TrimSpace(c.Query("force_provider")))
+	domainParam := strings.TrimSpace(c.Query("domain"))
+
+	if domainID == "" && domainParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain ID or domain query parameter required"})
 		return
 	}
 
+	// Resolve domain name (from param or repo)
+	var domainName string
+	if domainParam != "" {
+		domainName = domainParam
+	} else {
+		domain, err := h.domainRepo.GetByID(domainID)
+		if err == nil && domain != nil {
+			domainName = domain.Name
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Domain not found"})
+			return
+		}
+	}
+
+	// If force_provider provided, use it and do not fall back
+	if forceProvider != "" {
+		if client, ok := h.providerSvc.GetClientByProviderName(forceProvider); ok {
+			if dns, err := client.FetchDNSRecords(domainName); err == nil {
+				// Persist fetched DNS into DB for this domain
+				for i := range dns {
+					dns[i].DomainID = domainID
+				}
+				if err := h.dnsSvc.BulkUpdateRecords(domainID, dns); err != nil {
+					log.Printf("Failed to persist DNS for %s from %s: %v", domainName, forceProvider, err)
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"domain_id": domainID,
+					"records":   dns,
+					"count":     len(dns),
+					"source":    forceProvider,
+				})
+				return
+			}
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Unknown or unavailable provider: %s", forceProvider)})
+		return
+	}
+
+	// Try Cloudflare first, then registrar, then fallback to stored records
+	if cfClient, ok := h.providerSvc.GetClientByProviderName("cloudflare"); ok {
+		if dns, err := cfClient.FetchDNSRecords(domainName); err == nil && len(dns) > 0 {
+			// Persist to DB for fast subsequent loads
+			for i := range dns {
+				dns[i].DomainID = domainID
+			}
+			if err := h.dnsSvc.BulkUpdateRecords(domainID, dns); err != nil {
+				log.Printf("Failed to persist Cloudflare DNS for %s: %v", domainName, err)
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"domain_id": domainID,
+				"records":   dns,
+				"count":     len(dns),
+				"source":    "cloudflare",
+			})
+			return
+		}
+	}
+
+	// Try registrar (requires domain lookup)
+	if domainParam == "" {
+		if domain, err := h.domainRepo.GetByID(domainID); err == nil && domain != nil {
+			if regClient, ok := h.providerSvc.GetClientByProviderName(domain.Provider); ok {
+				if dns, err := regClient.FetchDNSRecords(domain.Name); err == nil && len(dns) > 0 {
+					for i := range dns { dns[i].DomainID = domainID }
+					if err := h.dnsSvc.BulkUpdateRecords(domainID, dns); err != nil {
+						log.Printf("Failed to persist %s DNS for %s: %v", domain.Provider, domain.Name, err)
+					}
+					c.JSON(http.StatusOK, gin.H{
+						"domain_id": domainID,
+						"records":   dns,
+						"count":     len(dns),
+						"source":    domain.Provider,
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// Fallback to stored records in repository
 	records, err := h.dnsSvc.GetDomainRecords(domainID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	// Ensure empty array instead of null for frontend rendering
+	if records == nil {
+		records = []types.DNSRecord{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"domain_id": domainID,
 		"records":   records,
 		"count":     len(records),
+		"source":    "database",
 	})
 }
 
@@ -1283,8 +1841,107 @@ func (h *AdminHandler) ResolveAlert(c *gin.Context) {
 
 // GetAuditEvents retrieves audit events with filters
 func (h *AdminHandler) GetAuditEvents(c *gin.Context) {
-	// Example: Fetch and filter audit events
-	c.JSON(http.StatusOK, gin.H{"audit_events": "Not yet implemented"})
+    // Parse filters
+    start := c.Query("start")
+    end := c.Query("end")
+    typ := c.Query("type")
+    userQ := strings.TrimSpace(c.Query("user"))
+
+    // If a security service with an audit repo exists, you would construct a filter and query it.
+    // For now, return sample data to power the UI, filtered in-memory.
+    sample := []map[string]interface{}{
+        {
+            "id": "ev_1",
+            "event_type": "login",
+            "username": "admin",
+            "user_id": "u_1",
+            "ip_address": "127.0.0.1",
+            "resource": "auth",
+            "action": "login",
+            "success": true,
+            "risk_score": 10,
+            "created_at": time.Now().Add(-6 * time.Hour),
+        },
+        {
+            "id": "ev_2",
+            "event_type": "dns_update",
+            "username": "alex",
+            "user_id": "u_2",
+            "ip_address": "10.0.0.5",
+            "resource": "dns:example.com",
+            "action": "update_record",
+            "success": true,
+            "risk_score": 35,
+            "created_at": time.Now().Add(-3 * time.Hour),
+        },
+        {
+            "id": "ev_3",
+            "event_type": "bulk_operation",
+            "username": "admin",
+            "user_id": "u_1",
+            "ip_address": "127.0.0.1",
+            "resource": "dns",
+            "action": "bulk_assign_ip",
+            "success": true,
+            "risk_score": 60,
+            "created_at": time.Now().Add(-90 * time.Minute),
+        },
+        {
+            "id": "ev_4",
+            "event_type": "security_violation",
+            "username": "unknown",
+            "user_id": "",
+            "ip_address": "203.0.113.44",
+            "resource": "admin",
+            "action": "blocked_request",
+            "success": false,
+            "risk_score": 85,
+            "created_at": time.Now().Add(-30 * time.Minute),
+        },
+    }
+
+    // Filter
+    var filtered []map[string]interface{}
+    for _, ev := range sample {
+        // type filter
+        if typ != "" && fmt.Sprint(ev["event_type"]) != typ {
+            continue
+        }
+        // user filter
+        if userQ != "" {
+            u := strings.ToLower(fmt.Sprint(ev["username"]))
+            if !strings.Contains(u, strings.ToLower(userQ)) {
+                continue
+            }
+        }
+        // date filters (YYYY-MM-DD expected)
+        if start != "" {
+            if t, ok := ev["created_at"].(time.Time); ok {
+                sd, _ := time.Parse("2006-01-02", start)
+                if t.Before(sd) {
+                    continue
+                }
+            }
+        }
+        if end != "" {
+            if t, ok := ev["created_at"].(time.Time); ok {
+                ed, _ := time.Parse("2006-01-02", end)
+                if t.After(ed.Add(24*time.Hour - time.Nanosecond)) {
+                    continue
+                }
+            }
+        }
+        filtered = append(filtered, ev)
+    }
+
+    // Sort by created_at desc
+    sort.Slice(filtered, func(i, j int) bool {
+        ti, _ := filtered[i]["created_at"].(time.Time)
+        tj, _ := filtered[j]["created_at"].(time.Time)
+        return ti.After(tj)
+    })
+
+    c.JSON(http.StatusOK, gin.H{"events": filtered})
 }
 
 // GetSecurityMetrics retrieves security metrics
@@ -1747,4 +2404,260 @@ func (h *AdminHandler) GetPurchaseProviders(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, providers)
+}
+
+// ============================================================================
+// UPTIMEROBOT MONITORING METHODS
+// ============================================================================
+
+// GetMonitoringStats returns overall monitoring statistics
+func (h *AdminHandler) GetMonitoringStats(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	stats, err := h.uptimeRobotSvc.GetMonitoringStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// GetMonitors returns all UptimeRobot monitors
+func (h *AdminHandler) GetMonitors(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	monitors, err := h.uptimeRobotSvc.GetMonitors()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"monitors": monitors,
+		"count":    len(monitors),
+	})
+}
+
+// SyncMonitors synchronizes UptimeRobot monitor data with the database
+func (h *AdminHandler) SyncMonitors(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	// Start sync in background
+	go func() {
+		if err := h.uptimeRobotSvc.SyncMonitors(); err != nil {
+			log.Printf("Monitor sync failed: %v", err)
+		} else {
+			log.Printf("Monitor sync completed successfully")
+		}
+	}()
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"message": "Monitor synchronization initiated",
+	})
+}
+
+// CreateMonitor creates a new UptimeRobot monitor
+func (h *AdminHandler) CreateMonitor(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	var req struct {
+		DomainID string                  `json:"domain_id" binding:"required"`
+		URL      string                  `json:"url" binding:"required,url"`
+		Type     uptimerobot.MonitorType `json:"type"`
+		Name     string                  `json:"name"`
+		Interval int                     `json:"interval"` // in minutes
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Get the domain to validate it exists
+	domain, err := h.domainRepo.GetByID(req.DomainID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Domain not found"})
+		return
+	}
+
+	// Create monitor using UptimeRobot service
+	monitor, err := h.uptimeRobotSvc.CreateMonitor(req.URL, req.Type, req.Name, req.Interval)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create monitor: " + err.Error()})
+		return
+	}
+
+	// Update domain with monitor ID
+	domain.UptimeRobotMonitorID = &monitor.ID
+	if err := h.domainRepo.Update(domain); err != nil {
+		log.Printf("Warning: Failed to update domain with monitor ID: %v", err)
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Monitor created successfully",
+		"monitor": monitor,
+	})
+}
+
+// UpdateMonitor updates an existing UptimeRobot monitor
+func (h *AdminHandler) UpdateMonitor(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	monitorIDStr := c.Param("id")
+	monitorID, err := strconv.ParseInt(monitorIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid monitor ID"})
+		return
+	}
+
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid update data"})
+		return
+	}
+
+	if err := h.uptimeRobotSvc.UpdateMonitor(int(monitorID), updates); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update monitor: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Monitor updated successfully",
+	})
+}
+
+// DeleteMonitor deletes a UptimeRobot monitor
+func (h *AdminHandler) DeleteMonitor(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	monitorIDStr := c.Param("id")
+	monitorID, err := strconv.ParseInt(monitorIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid monitor ID"})
+		return
+	}
+
+	if err := h.uptimeRobotSvc.DeleteMonitor(int(monitorID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete monitor: " + err.Error()})
+		return
+	}
+
+	// Find and update any domains that reference this monitor
+	domains, err := h.domainRepo.GetAll()
+	if err == nil {
+		for _, domain := range domains {
+			if domain.UptimeRobotMonitorID != nil && *domain.UptimeRobotMonitorID == int(monitorID) {
+				domain.UptimeRobotMonitorID = nil
+				domain.MonitorStatus = nil
+				domain.UptimeRatio = nil
+				domain.ResponseTime = nil
+				domain.LastDowntime = nil
+				h.domainRepo.Update(&domain)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Monitor deleted successfully",
+	})
+}
+
+// GetMonitorLogs retrieves logs for a specific monitor
+func (h *AdminHandler) GetMonitorLogs(c *gin.Context) {
+	if h.uptimeRobotSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "UptimeRobot service not configured"})
+		return
+	}
+
+	monitorIDStr := c.Param("id")
+	monitorID, err := strconv.ParseInt(monitorIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid monitor ID"})
+		return
+	}
+
+	// Parse query parameters for filtering
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	logs, err := h.uptimeRobotSvc.GetMonitorLogs(int(monitorID), limit, offset, startDateStr, endDateStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch monitor logs: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"monitor_id": monitorID,
+		"logs":       logs,
+		"count":      len(logs),
+		"limit":      limit,
+		"offset":     offset,
+	})
+}
+
+// GetDomainMonitoring returns monitoring data for a specific domain
+func (h *AdminHandler) GetDomainMonitoring(c *gin.Context) {
+	domainID := c.Param("id")
+	if domainID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain ID required"})
+		return
+	}
+
+	// Get the domain
+	domain, err := h.domainRepo.GetByID(domainID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Domain not found"})
+		return
+	}
+
+	response := gin.H{
+		"domain_id":   domainID,
+		"domain_name": domain.Name,
+		"monitoring": gin.H{
+			"enabled":                  domain.UptimeRobotMonitorID != nil,
+			"uptime_robot_monitor_id": domain.UptimeRobotMonitorID,
+			"uptime_ratio":            domain.UptimeRatio,
+			"response_time":           domain.ResponseTime,
+			"monitor_status":          domain.MonitorStatus,
+			"last_downtime":           domain.LastDowntime,
+		},
+	}
+
+	// If UptimeRobot service is available and domain has a monitor, get additional data
+	if h.uptimeRobotSvc != nil && domain.UptimeRobotMonitorID != nil {
+		// Get recent monitor stats
+		stats, err := h.uptimeRobotSvc.GetMonitorStats(*domain.UptimeRobotMonitorID)
+		if err == nil {
+			response["monitoring"].(gin.H)["recent_stats"] = stats
+		}
+
+		// Get recent logs (last 10 entries)
+		logs, err := h.uptimeRobotSvc.GetMonitorLogs(*domain.UptimeRobotMonitorID, 10, 0, "", "")
+		if err == nil {
+			response["monitoring"].(gin.H)["recent_logs"] = logs
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }

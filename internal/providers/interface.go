@@ -10,6 +10,9 @@ type RegistrarClient interface {
 	FetchDomains() ([]types.Domain, error)
 	GetProviderName() string
 	
+	// DNS operations
+	FetchDNSRecords(domain string) ([]types.DNSRecord, error)
+	
 	// Future hooks for MVP expansion
 	// RenewDomain(domainID string) error
 	// UpdateDNS(domain string, records []types.DNSRecord) error
@@ -28,6 +31,8 @@ func NewClient(provider string, creds ProviderCredentials) (RegistrarClient, err
 		return NewNamecheapClient(creds)
 	case "hostinger":
 		return NewHostingerClient(creds)
+	case "cloudflare":
+		return NewCloudflareClient(creds)
 	case "mock":
 		return NewMockClient(creds)
 	default:
@@ -54,6 +59,10 @@ func ValidateCredentials(provider string, creds ProviderCredentials) error {
 		}
 	case "hostinger":
 		if _, ok := creds["api_key"]; !ok {
+			return types.ErrMissingConfig
+		}
+	case "cloudflare":
+		if _, ok := creds["api_token"]; !ok {
 			return types.ErrMissingConfig
 		}
 	case "mock":

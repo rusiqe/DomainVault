@@ -104,7 +104,7 @@ func (r *PostgresRepo) UpsertDomains(domains []types.Domain) error {
 // GetAll retrieves all domains
 func (r *PostgresRepo) GetAll() ([]types.Domain, error) {
 	var domains []types.Domain
-	query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, http_status, last_status_check, status_message FROM domains ORDER BY created_at DESC"
+query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, visible, http_status, last_status_check, status_message FROM domains WHERE visible = TRUE ORDER BY created_at DESC"
 	
 	err := r.db.Select(&domains, query)
 	if err != nil {
@@ -117,7 +117,7 @@ func (r *PostgresRepo) GetAll() ([]types.Domain, error) {
 // GetByID retrieves a domain by its ID
 func (r *PostgresRepo) GetByID(id string) (*types.Domain, error) {
 	var domain types.Domain
-	query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, http_status, last_status_check, status_message FROM domains WHERE id = $1"
+query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, visible, http_status, last_status_check, status_message FROM domains WHERE id = $1 AND visible = TRUE"
 	
 	err := r.db.Get(&domain, query, id)
 	if err != nil {
@@ -137,7 +137,7 @@ func (r *PostgresRepo) GetByFilter(filter types.DomainFilter) ([]types.Domain, e
 	var args []interface{}
 	var argIndex int
 
-	query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, http_status, last_status_check, status_message FROM domains"
+query := "SELECT id, name, provider, expires_at, created_at, updated_at, category_id, project_id, auto_renew, renewal_price, status, tags, visible, http_status, last_status_check, status_message FROM domains"
 
 	// Build WHERE conditions
 	if filter.Provider != "" {
@@ -176,6 +176,11 @@ func (r *PostgresRepo) GetByFilter(filter types.DomainFilter) ([]types.Domain, e
 		args = append(args, *filter.ProjectID)
 	}
 
+if filter.OnlyHidden {
+		conditions = append(conditions, "visible = FALSE")
+	} else if !filter.IncludeHidden {
+		conditions = append(conditions, "visible = TRUE")
+	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
@@ -218,7 +223,7 @@ func (r *PostgresRepo) GetDomainsByName(name string) ([]types.Domain, error) {
 
 // Delete removes a domain by ID
 func (r *PostgresRepo) Delete(id string) error {
-	result, err := r.db.Exec("DELETE FROM domains WHERE id = $1", id)
+result, err := r.db.Exec("UPDATE domains SET visible = FALSE, updated_at = NOW() WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete domain: %w", err)
 	}
@@ -228,6 +233,20 @@ func (r *PostgresRepo) Delete(id string) error {
 		return types.ErrDomainNotFound
 	}
 
+return nil
+}
+
+// SetVisibility updates the visibility (soft-delete flag) for a domain
+func (r *PostgresRepo) SetVisibility(id string, visible bool) error {
+	query := "UPDATE domains SET visible = $1, updated_at = NOW() WHERE id = $2"
+	result, err := r.db.Exec(query, visible, id)
+	if err != nil {
+		return fmt.Errorf("failed to set domain visibility: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return types.ErrDomainNotFound
+	}
 	return nil
 }
 
@@ -256,14 +275,17 @@ func (r *PostgresRepo) GetSummary() (*types.DomainSummary, error) {
 		LastSync:    time.Now(),
 	}
 
-	// Get total count
-	err := r.db.Get(&summary.Total, "SELECT COUNT(*) FROM domains")
-	if err != nil {
+	// Visible total
+	if err := r.db.Get(&summary.Total, "SELECT COUNT(*) FROM domains WHERE visible = TRUE"); err != nil {
 		return nil, fmt.Errorf("failed to get total domain count: %w", err)
 	}
+	// Hidden count
+	if err := r.db.Get(&summary.Hidden, "SELECT COUNT(*) FROM domains WHERE visible = FALSE"); err != nil {
+		return nil, fmt.Errorf("failed to get hidden domain count: %w", err)
+	}
 
-	// Get count by provider
-	rows, err := r.db.Query("SELECT provider, COUNT(*) FROM domains GROUP BY provider")
+	// Get count by provider (visible only)
+	rows, err := r.db.Query("SELECT provider, COUNT(*) FROM domains WHERE visible = TRUE GROUP BY provider")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get domains by provider: %w", err)
 	}
@@ -286,9 +308,9 @@ func (r *PostgresRepo) GetSummary() (*types.DomainSummary, error) {
 		"365_days": 365 * 24 * time.Hour,
 	}
 
-	for period, duration := range expirationPeriods {
+for period, duration := range expirationPeriods {
 		var count int
-		query := "SELECT COUNT(*) FROM domains WHERE expires_at BETWEEN NOW() AND $1"
+		query := "SELECT COUNT(*) FROM domains WHERE visible = TRUE AND expires_at BETWEEN NOW() AND $1"
 		err := r.db.Get(&count, query, now.Add(duration))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get expiring count for %s: %w", period, err)

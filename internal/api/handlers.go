@@ -36,7 +36,8 @@ func (h *DomainHandler) RegisterRoutes(r *gin.Engine) {
 		api.GET("/domains", h.ListDomains)
 		api.GET("/domains/:id", h.GetDomain)
 		api.PUT("/domains/:id", h.UpdateDomain)
-		api.DELETE("/domains/:id", h.DeleteDomain)
+api.DELETE("/domains/:id", h.DeleteDomain)
+		api.PUT("/domains/:id/visibility", h.SetDomainVisibility)
 		api.GET("/domains/summary", h.GetSummary)
 		api.GET("/domains/expiring", h.GetExpiringDomains)
 
@@ -120,6 +121,14 @@ func (h *DomainHandler) ListDomains(c *gin.Context) {
 		}
 	}
 
+	if c.Query("include_hidden") == "true" {
+		filter.IncludeHidden = true
+	}
+	if c.Query("only_hidden") == "true" {
+		filter.OnlyHidden = true
+		filter.IncludeHidden = true
+	}
+
 	domains, err := h.repo.GetByFilter(filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -154,7 +163,7 @@ func (h *DomainHandler) GetDomain(c *gin.Context) {
 	c.JSON(http.StatusOK, domain)
 }
 
-// DeleteDomain removes a domain by ID
+// DeleteDomain removes a domain by ID (soft delete: sets visible=false)
 func (h *DomainHandler) DeleteDomain(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -172,7 +181,34 @@ func (h *DomainHandler) DeleteDomain(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "domain deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "domain removed from portfolio"})
+}
+
+// SetDomainVisibility toggles a domain's visibility (soft delete/restore)
+func (h *DomainHandler) SetDomainVisibility(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "domain ID required"})
+		return
+	}
+	var req struct{ Visible bool `json:"visible"` }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if err := h.repo.SetVisibility(id, req.Visible); err != nil {
+		if err == types.ErrDomainNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "domain not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	status := "hidden"
+	if req.Visible {
+		status = "visible"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "domain visibility updated", "status": status})
 }
 
 // GetSummary returns domain statistics
@@ -210,10 +246,10 @@ func (h *DomainHandler) GetExpiringDomains(c *gin.Context) {
 	})
 }
 
-// TriggerSync starts a full sync across all providers
+// TriggerSync starts a full sync across all providers including DNS records
 func (h *DomainHandler) TriggerSync(c *gin.Context) {
 	go func() {
-		if err := h.syncSvc.Run(); err != nil {
+		if err := h.syncSvc.SyncDomainsWithDNS(); err != nil {
 			// Log error, but don't block the response
 			// In production, this would be logged properly
 		}
@@ -225,7 +261,7 @@ func (h *DomainHandler) TriggerSync(c *gin.Context) {
 	})
 }
 
-// SyncProvider triggers sync for a specific provider
+// SyncProvider triggers sync for a specific provider including DNS records
 func (h *DomainHandler) SyncProvider(c *gin.Context) {
 	provider := c.Param("provider")
 	if provider == "" {
@@ -234,7 +270,7 @@ func (h *DomainHandler) SyncProvider(c *gin.Context) {
 	}
 
 	go func() {
-		if err := h.syncSvc.SyncProvider(provider); err != nil {
+		if err := h.syncSvc.SyncProviderWithDNS(provider); err != nil {
 			// Log error, but don't block the response
 		}
 	}()
@@ -664,69 +700,38 @@ func (h *DomainHandler) ListProviders(c *gin.Context) {
 
 // SyncMonitoring synchronizes UptimeRobot monitoring for domains
 func (h *DomainHandler) SyncMonitoring(c *gin.Context) {
-	// Check if UptimeRobot is configured
-	if h.uptimeSvc == nil || !h.uptimeSvc.IsConfigured() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "UptimeRobot is not configured",
-			"message": "Please configure UptimeRobot API key first",
-		})
-		return
-	}
-
-	// Get all domains
-	domains, err := h.repo.GetByFilter(types.DomainFilter{Limit: 1000}) // Get all domains
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Sync monitoring with UptimeRobot
-	monitorType := uptimerobot.MonitorTypeHTTP // Default to HTTP monitoring
-	autoCreate := true // Auto-create monitors for domains without them
-
-	response, err := h.uptimeSvc.SyncDomainMonitoring(domains, monitorType, autoCreate)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to sync monitoring",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, response)
+	// Since we're using Terraform for UptimeRobot management,
+	// return information about Terraform-managed monitoring
+	c.JSON(http.StatusOK, gin.H{
+		"message": "UptimeRobot monitoring is managed via Terraform",
+		"status": "terraform_managed",
+		"info": "Use 'terraform apply' in the terraform/ directory to sync monitors",
+		"terraform_dir": "./terraform/",
+		"managed_domains": []string{
+			"content-dao.xyz",
+			"atozpolandmoves.com", 
+			"zurioasiselite.icu",
+			"relationswithdevs.xyz",
+		},
+	})
 }
 
 // CreateMonitoring creates UptimeRobot monitors for specified domains
 func (h *DomainHandler) CreateMonitoring(c *gin.Context) {
-	// Check if UptimeRobot is configured
-	if h.uptimeSvc == nil || !h.uptimeSvc.IsConfigured() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "UptimeRobot is not configured",
-			"message": "Please configure UptimeRobot API key first",
-		})
-		return
-	}
-
-	var req types.UptimeRobotMonitorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid monitoring request",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	// Create monitors for the specified domains
-	response, err := h.uptimeSvc.BulkCreateMonitors(&req)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create monitors",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusCreated, response)
+	// Since we're using Terraform for UptimeRobot management,
+	// redirect users to use Terraform instead
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Monitor creation is managed via Terraform",
+		"status": "terraform_managed",
+		"instructions": "Add domains to terraform/terraform.tfvars and run 'terraform apply'",
+		"terraform_dir": "./terraform/",
+		"current_monitors": []string{
+			"content-dao.xyz (ID: 801092250)",
+			"atozpolandmoves.com (ID: 801092248)",
+			"zurioasiselite.icu (ID: 801092247)",
+			"relationswithdevs.xyz (ID: 801092249)",
+		},
+	})
 }
 
 // GetMonitoringStats returns UptimeRobot monitoring statistics
@@ -740,36 +745,171 @@ func (h *DomainHandler) GetMonitoringStats(c *gin.Context) {
 		return
 	}
 
-	// Get monitoring metrics from UptimeRobot
-	metrics, err := h.uptimeSvc.GetMonitoringMetrics()
+	// Get live monitoring metrics from UptimeRobot
+	uptimeMetrics, err := h.uptimeSvc.GetMonitoringMetrics()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get monitoring statistics",
+			"error": "Failed to get UptimeRobot monitoring statistics",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	// Also get database monitoring stats
+	// Get live DomainVault monitors with detailed stats
+	liveMonitors, err := h.uptimeSvc.GetDomainVaultMonitors(true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get live monitor data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Get database monitoring stats
 	dbStats := h.getDBMonitoringStats()
 
+	// Create detailed monitor breakdown
+	monitorDetails := make([]map[string]interface{}, 0, len(liveMonitors))
+	for _, monitor := range liveMonitors {
+		detail := map[string]interface{}{
+			"id": monitor.ID,
+			"name": monitor.FriendlyName,
+			"url": monitor.URL,
+			"status": h.getStatusString(monitor.Status),
+			"type": h.getMonitorTypeString(monitor.Type),
+			"interval": monitor.Interval,
+			"created_at": time.Unix(monitor.CreateDatetime, 0).Format(time.RFC3339),
+		}
+
+		// Add response time if available
+		if len(monitor.ResponseTimes) > 0 {
+			detail["response_time_ms"] = monitor.ResponseTimes[len(monitor.ResponseTimes)-1].Value
+		}
+
+		// Add recent logs if available
+		if len(monitor.Logs) > 0 {
+			recentLogs := make([]map[string]interface{}, 0, len(monitor.Logs))
+			for _, log := range monitor.Logs {
+				recentLogs = append(recentLogs, map[string]interface{}{
+					"datetime": time.Unix(log.Datetime, 0).Format(time.RFC3339),
+					"type": log.Type,
+					"duration": log.Duration,
+					"reason": log.Reason.Detail,
+				})
+			}
+			detail["recent_events"] = recentLogs
+		}
+
+		monitorDetails = append(monitorDetails, detail)
+	}
+
+	// Calculate summary statistics
+	summary := map[string]interface{}{
+		"total_monitors": len(liveMonitors),
+		"up_monitors": 0,
+		"down_monitors": 0,
+		"paused_monitors": 0,
+		"average_response_time": 0,
+		"monitored_domains": len(liveMonitors),
+	}
+
+	totalResponseTime := 0
+	responseTimeCount := 0
+
+	for _, monitor := range liveMonitors {
+		switch monitor.Status {
+		case 2: // Up
+			summary["up_monitors"] = summary["up_monitors"].(int) + 1
+		case 8, 9: // Seems down or down
+			summary["down_monitors"] = summary["down_monitors"].(int) + 1
+		case 0: // Paused
+			summary["paused_monitors"] = summary["paused_monitors"].(int) + 1
+		}
+
+		// Calculate average response time
+		if len(monitor.ResponseTimes) > 0 {
+			totalResponseTime += monitor.ResponseTimes[len(monitor.ResponseTimes)-1].Value
+			responseTimeCount++
+		}
+	}
+
+	if responseTimeCount > 0 {
+		summary["average_response_time"] = totalResponseTime / responseTimeCount
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"uptimerobot": metrics,
-		"database": dbStats,
-		"timestamp": time.Now(),
+		"success": true,
+		"timestamp": time.Now().Format(time.RFC3339),
+		"summary": summary,
+		"uptimerobot_account": uptimeMetrics["account"],
+		"database_stats": dbStats,
+		"monitor_details": monitorDetails,
+		"last_updated": time.Now().Format(time.RFC3339),
 	})
 }
 
 // getDBMonitoringStats retrieves monitoring statistics from the database
 func (h *DomainHandler) getDBMonitoringStats() map[string]interface{} {
-	// This would typically query the database for monitoring statistics
-	// For now, return placeholder stats
+	// Get domain summary to provide real database stats
+	summary, err := h.repo.GetSummary()
+	if err != nil {
+		// Return empty stats if we can't get summary
+		return map[string]interface{}{
+			"total_domains": 0,
+			"monitored_domains": 0,
+			"up_domains": 0,
+			"down_domains": 0,
+			"average_uptime": 0.0,
+			"average_response_time": 0,
+			"error": "Failed to get database stats",
+		}
+	}
+
 	return map[string]interface{}{
-		"total_domains": 0,
-		"monitored_domains": 0,
+		"total_domains": summary.Total,
+		"domains_by_provider": summary.ByProvider,
+		"expiring_soon": summary.ExpiringIn,
+		"last_sync": summary.LastSync,
+		"monitored_domains": 0, // This would be populated from actual monitoring data
 		"up_domains": 0,
 		"down_domains": 0,
 		"average_uptime": 0.0,
 		"average_response_time": 0,
+	}
+}
+
+// getStatusString converts monitor status to human-readable string
+func (h *DomainHandler) getStatusString(status uptimerobot.MonitorStatus) string {
+	switch status {
+	case 0:
+		return "paused"
+	case 1:
+		return "not_checked_yet"
+	case 2:
+		return "up"
+	case 8:
+		return "seems_down"
+	case 9:
+		return "down"
+	default:
+		return "unknown"
+	}
+}
+
+// getMonitorTypeString converts monitor type to human-readable string
+func (h *DomainHandler) getMonitorTypeString(monitorType uptimerobot.MonitorType) string {
+	switch monitorType {
+	case 1:
+		return "http"
+	case 2:
+		return "keyword"
+	case 3:
+		return "ping"
+	case 4:
+		return "port"
+	case 5:
+		return "heartbeat"
+	default:
+		return "unknown"
 	}
 }

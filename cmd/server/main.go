@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ import (
 	"github.com/rusiqe/domainvault/internal/providers"
 	"github.com/rusiqe/domainvault/internal/security"
 	"github.com/rusiqe/domainvault/internal/storage"
+	"github.com/rusiqe/domainvault/internal/types"
 	"github.com/rusiqe/domainvault/internal/uptimerobot"
 )
 
@@ -58,6 +60,7 @@ func main() {
 	syncSvc := core.NewSyncService(repo)
 
 	// Initialize providers
+	providerSvc := providers.NewProviderService()
 	for _, providerConfig := range cfg.Providers {
 		client, err := providers.NewClient(providerConfig.Name, providerConfig.Credentials)
 		if err != nil {
@@ -65,9 +68,15 @@ func main() {
 			continue
 		}
 		syncSvc.AddProvider(providerConfig.Name, client)
+		providerSvc.RegisterClient(providerConfig.Name, client)
 	}
 
-	// Start sync scheduler
+	// Initialize DNS service early for schedulers
+	dnsSvc := dns.NewDNSService(repo)
+	// Configure sync service to use DNS service
+	syncSvc.SetDNSService(dnsSvc)
+
+	// Start domain sync scheduler (registrar domains)
 	go func() {
 		ticker := time.NewTicker(cfg.SyncInterval)
 		defer ticker.Stop()
@@ -79,12 +88,71 @@ func main() {
 		}
 	}()
 
+	// Start DNS refresh scheduler (Cloudflare-first, then registrar as needed)
+	go func() {
+		intervalHours := 24
+		if v := os.Getenv("DNS_SYNC_INTERVAL_HOURS"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				intervalHours = n
+			}
+		}
+		dnsTicker := time.NewTicker(time.Duration(intervalHours) * time.Hour)
+		defer dnsTicker.Stop()
+
+		// Run once on startup, then on each tick
+		refresh := func() {
+			cfClient, ok := providerSvc.GetClientByProviderName("cloudflare")
+			if !ok {
+				log.Printf("DNS refresh: Cloudflare client not available; skipping")
+				return
+			}
+			domains, err := repo.GetAll()
+			if err != nil {
+				log.Printf("DNS refresh: failed to list domains: %v", err)
+				return
+			}
+			updated := 0
+			skipped := 0
+			for _, d := range domains {
+				// Fetch from Cloudflare
+				records, err := cfClient.FetchDNSRecords(d.Name)
+				if err != nil {
+					// Optional: try registrar as fallback
+					if regClient, ok := providerSvc.GetClientByProviderName(d.Provider); ok {
+						records, err = regClient.FetchDNSRecords(d.Name)
+					}
+				}
+				if err != nil || len(records) == 0 {
+					continue
+				}
+				// Compare with DB
+				stored, err := dnsSvc.GetDomainRecords(d.ID)
+				if err != nil {
+					log.Printf("DNS refresh: failed to get stored records for %s: %v", d.Name, err)
+				}
+				if dnsRecordSetsEqual(stored, records) {
+					skipped++
+					continue
+				}
+				// Replace stored records with fresh ones
+				if err := dnsSvc.BulkUpdateRecords(d.ID, normalizeRecordsForStore(d.ID, records)); err != nil {
+					log.Printf("DNS refresh: failed to update records for %s: %v", d.Name, err)
+					continue
+				}
+				updated++
+			}
+			log.Printf("DNS refresh completed: %d updated, %d unchanged, total %d", updated, skipped, len(domains))
+		}
+
+		// Initial run
+		refresh()
+		for range dnsTicker.C {
+			refresh()
+		}
+	}()
+
 	// Initialize services
 	authSvc := auth.NewAuthService(repo)
-	dnsSvc := dns.NewDNSService(repo)
-	
-	// Configure sync service to use DNS service
-	syncSvc.SetDNSService(dnsSvc)
 
 	// Initialize enhanced services
 	analyticsSvc := analytics.NewAnalyticsService(repo)
@@ -125,12 +193,24 @@ func main() {
 		log.Printf("Warning: Failed to create default admin user: %v", err)
 	}
 
-// Initialize UptimeRobot service - DISABLED for Terraform
-// uptimeRobotSvc := uptimerobot.NewService(cfg.UptimeRobot)
+// Initialize UptimeRobot service
+var uptimeRobotSvc *uptimerobot.Service
+if cfg.UptimeRobot != nil {
+	uptimeRobotSvc = uptimerobot.NewService(cfg.UptimeRobot)
+	if uptimeRobotSvc.IsConfigured() {
+		log.Printf("UptimeRobot service initialized")
+	} else {
+		log.Printf("UptimeRobot service disabled: not properly configured")
+	}
+} else {
+	log.Printf("UptimeRobot service disabled: no configuration found")
+	// Create a nil service for graceful handling
+	uptimeRobotSvc = nil
+}
 
-// Initialize API handlers (with UptimeRobot removed for Terraform)
-handler := api.NewDomainHandler(repo, syncSvc, nil)
-adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc, notificationSvc, securitySvc)
+// Initialize API handlers (with UptimeRobot service)
+handler := api.NewDomainHandler(repo, syncSvc, uptimeRobotSvc)
+adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, providerSvc, analyticsSvc, notificationSvc, securitySvc, uptimeRobotSvc)
 
 	// Setup Gin router
 	r := gin.Default()
@@ -138,14 +218,9 @@ adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc
 	// Serve static files
 	r.Static("/static", "./web/static")
 
-	// Serve admin interface (use enhanced version)
+	// Serve admin interface
 	r.GET("/admin", func(c *gin.Context) {
-		c.File("./web/admin-enhanced.html")
-	})
-
-	// Serve enhanced admin interface
-	r.GET("/admin-enhanced.html", func(c *gin.Context) {
-		c.File("./web/admin-enhanced.html")
+		c.File("./web/admin.html")
 	})
 
 	// Serve main interface
@@ -164,4 +239,51 @@ adminHandler := api.NewAdminHandler(repo, authSvc, syncSvc, dnsSvc, analyticsSvc
 	if err := r.Run(fmt.Sprintf(":%d", cfg.Port)); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
+}
+
+// dnsRecordSetsEqual compares two DNS record sets for equality ignoring IDs and timestamps.
+func dnsRecordSetsEqual(a, b []types.DNSRecord) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	am := make(map[string]int, len(a))
+	for _, r := range a {
+		am[fingerprint(r)]++
+	}
+	for _, r := range b {
+		key := fingerprint(r)
+		if c, ok := am[key]; !ok || c == 0 {
+			return false
+		} else {
+			am[key] = c - 1
+		}
+	}
+	for _, c := range am {
+		if c != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func fingerprint(r types.DNSRecord) string {
+	prio := ""
+	if r.Priority != nil {
+		prio = fmt.Sprintf("|p=%d", *r.Priority)
+	}
+	return fmt.Sprintf("%s|%s|%s|ttl=%d%s", r.Type, r.Name, r.Value, r.TTL, prio)
+}
+
+// normalizeRecordsForStore sets DomainID and timestamps; values are already normalized by provider clients
+func normalizeRecordsForStore(domainID string, in []types.DNSRecord) []types.DNSRecord {
+	out := make([]types.DNSRecord, len(in))
+	now := time.Now()
+	for i := range in {
+		out[i] = in[i]
+		out[i].DomainID = domainID
+		// Keep TTL/priority as provided
+		out[i].CreatedAt = now
+		out[i].UpdatedAt = now
+	}
+	return out
 }

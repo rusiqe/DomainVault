@@ -3,336 +3,3620 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DomainVault Admin</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>DomainVault</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .admin-login {
-            min-height: 100vh;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            line-height: 1.34;
+        }
+
+        /* Header */
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #dadde1;
+            padding: 12px 16px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 56px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1877f2;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1877f2;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
         }
-        .login-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            width: 100%;
-            max-width: 400px;
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #65676b;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background-color 0.2s;
         }
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
+
+        .logout-btn:hover {
+            background-color: #f0f2f5;
         }
-        .login-header h1 {
-            margin: 0;
-            color: #1f2937;
-            font-size: 1.875rem;
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 56px;
+            width: 280px;
+            height: calc(100vh - 56px);
+            background: #ffffff;
+            border-right: 1px solid #dadde1;
+            padding: 16px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+
+        .sidebar-title {
+            padding: 0 16px 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #65676b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            color: #1c1e21;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        .menu-item:hover {
+            background-color: #f0f2f5;
+        }
+
+        .menu-item.active {
+            background-color: #e7f3ff;
+            color: #1877f2;
+            border-right: 3px solid #1877f2;
+        }
+
+        .menu-item i {
+            width: 20px;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            margin-top: 56px;
+            padding: 24px;
+            min-height: calc(100vh - 56px);
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
             font-weight: 700;
+            color: #1c1e21;
+            margin-bottom: 4px;
         }
-        .login-header p {
-            margin: 0.5rem 0 0 0;
-            color: #6b7280;
+
+        .page-subtitle {
+            color: #65676b;
+            font-size: 14px;
         }
+
+        /* Cards */
+        .card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #dadde1;
+            background: #fafbfc;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1877f2;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: #65676b;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .stat-change.positive {
+            color: #42b883;
+        }
+
+        .stat-change.negative {
+            color: #e74c3c;
+        }
+
+        /* Tables */
+        .table-container {
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #fafbfc;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #1c1e21;
+            border-bottom: 1px solid #dadde1;
+            font-size: 14px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f2f5;
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: #1877f2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #166fe5;
+        }
+
+        .btn-secondary {
+            background: #e4e6ea;
+            color: #1c1e21;
+        }
+
+        .btn-secondary:hover {
+            background: #d8dadf;
+        }
+
+        .btn-success {
+            background: #42b883;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #369870;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        /* Forms */
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 16px;
         }
+
         .form-label {
             display: block;
-            margin-bottom: 0.5rem;
-            color: #374151;
+            margin-bottom: 4px;
+            font-weight: 600;
+            color: #1c1e21;
+            font-size: 14px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #ffffff;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #1877f2;
+            box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #65676b;
+        }
+
+        .loading i {
+            margin-right: 8px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Status Badges */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-expired {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-expiring {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* Provider Management Styles */
+        .page-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .providers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .provider-card {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.2s;
+        }
+
+        .provider-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1877f2;
+        }
+
+        .provider-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .provider-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .provider-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #1877f2;
+        }
+
+        .provider-meta h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .provider-meta p {
+            margin: 4px 0 0;
+            font-size: 14px;
+            color: #65676b;
+        }
+
+        .provider-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
             font-weight: 500;
         }
-        .form-input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #d1d5db;
+
+        .status-indicator.online {
+            color: #42b883;
+        }
+
+        .status-indicator.offline {
+            color: #e74c3c;
+        }
+
+        .status-indicator.syncing {
+            color: #f39c12;
+        }
+
+        .status-indicator i {
+            font-size: 8px;
+        }
+
+        .provider-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #65676b;
+            margin-top: 2px;
+        }
+
+        .provider-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+        }
+
+        .providers-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .supported-provider {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .supported-provider:hover {
+            border-color: #1877f2;
+            background: #f8f9fa;
+        }
+
+        .supported-provider-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .supported-provider-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #1877f2;
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .sync-details {
+            flex: 1;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-container {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Domain Search Styles */
+        .domain-search-container {
+            padding: 16px 0;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .search-input-group textarea {
+            flex: 1;
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .search-input-group button {
+            height: fit-content;
+            padding: 12px 20px;
+            white-space: nowrap;
+        }
+
+        .search-results {
+            margin-top: 24px;
+            border-top: 1px solid #dadde1;
+            padding-top: 16px;
+        }
+
+        .search-results h4 {
+            margin-bottom: 16px;
+            color: #1c1e21;
+            font-weight: 600;
+        }
+
+        .domain-result {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
             border-radius: 6px;
-            font-size: 1rem;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            margin-bottom: 8px;
+            transition: all 0.2s;
         }
-        .form-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+
+        .domain-result:hover {
+            border-color: #1877f2;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .btn-login {
+
+        .domain-result.available {
+            border-left: 4px solid #42b883;
+        }
+
+        .domain-result.taken {
+            border-left: 4px solid #e74c3c;
+            opacity: 0.7;
+        }
+
+        .domain-result.premium {
+            border-left: 4px solid #f39c12;
+        }
+
+        .domain-info {
+            flex: 1;
+        }
+
+        .domain-name {
+            font-weight: 600;
+            color: #1c1e21;
+            font-size: 16px;
+        }
+
+        .domain-status {
+            font-size: 14px;
+            color: #65676b;
+            margin-top: 2px;
+        }
+
+        .domain-pricing {
+            text-align: right;
+            margin-right: 12px;
+        }
+
+        .price-main {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .price-renewal {
+            font-size: 12px;
+            color: #65676b;
+        }
+
+        .domain-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Domain Search Results Styles */
+        .results-section {
+            margin-bottom: 24px;
+        }
+
+        .results-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dadde1;
+        }
+
+        .results-title.available {
+            color: #42b883;
+        }
+
+        .results-title.unavailable {
+            color: #e74c3c;
+        }
+
+        .domain-result-card {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .domain-result-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1877f2;
+        }
+
+        .domain-result-card.available {
+            border-left: 4px solid #42b883;
+        }
+
+        .domain-result-card.unavailable {
+            border-left: 4px solid #e74c3c;
+            opacity: 0.8;
+        }
+
+        .domain-info {
+            padding: 16px;
+        }
+
+        .domain-name {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .domain-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .availability-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .availability-badge.available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .availability-badge.unavailable {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .availability-badge.purchased {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .premium-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            background: #fff3cd;
+            color: #856404;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .pricing-info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .price-details {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .purchase-price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1c1e21;
+        }
+
+        .price-period {
+            font-size: 14px;
+            color: #65676b;
+        }
+
+        .renewal-price {
+            font-size: 12px;
+            color: #65676b;
+            margin-left: auto;
+        }
+
+        .coupon-discount {
+            font-size: 12px;
+            color: #42b883;
+            font-weight: 500;
+        }
+
+        .provider-options {
+            border-top: 1px solid #dadde1;
+            padding-top: 16px;
+        }
+
+        .provider-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .provider-option:hover {
+            border-color: #1877f2;
+            background: #f0f8ff;
+        }
+
+        .provider-option.recommended {
+            border-color: #42b883;
+            background: #f0fff4;
+        }
+
+        .provider-option.unsupported {
+            opacity: 0.6;
+        }
+
+        .provider-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .provider-name {
+            font-weight: 500;
+            color: #1c1e21;
+        }
+
+        .recommended-badge {
+            background: #d4edda;
+            color: #155724;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .unsupported-badge {
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .provider-pricing {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .provider-price {
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .result-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #65676b;
+            font-size: 16px;
+        }
+
+        /* Website Status Styles */
+        .website-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .website-status.status-200 {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .website-status.status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .website-status.status-unknown {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .website-status.status-checking {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .domain-status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .domain-status-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .domain-status-badge.expired {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .domain-status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* Bulk Actions Styles */
+        .bulk-actions {
+            padding: 16px;
+            background: #f8f9fa;
+            border-top: 1px solid #dadde1;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .bulk-actions::before {
+            content: "Selected items:";
+            font-size: 14px;
+            color: #65676b;
+            font-weight: 500;
+        }
+
+        /* Provider Selection Styles */
+        .provider-selection {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dadde1;
+        }
+
+        .provider-selection h5 {
+            margin-bottom: 12px;
+            color: #1c1e21;
+            font-weight: 600;
+        }
+
+        .provider-options {
+            display: grid;
+            gap: 8px;
+        }
+
+        .provider-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .provider-option:hover {
+            border-color: #1877f2;
+            background: #f0f8ff;
+        }
+
+        .provider-option.selected {
+            border-color: #1877f2;
+            background: #e7f3ff;
+        }
+
+        .provider-option-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .provider-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #1877f2;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            border-bottom: 1px solid #f0f2f5;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #65676b;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: #f0f2f5;
+        }
+
+        .modal-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding: 20px;
+            border-top: 1px solid #f0f2f5;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #1c1e21;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .credentials-field {
+            margin-bottom: 16px;
+        }
+
+        .credentials-field .form-label {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .credentials-help {
+            font-size: 12px;
+            color: #65676b;
+            margin-top: 4px;
+        }
+
+        /* DNS Management Styles */
+        .dns-domain-selector {
+            margin-bottom: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-item strong {
+            font-size: 12px;
+            color: #65676b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-item span {
+            font-size: 14px;
+            color: #1c1e21;
+            font-weight: 500;
+        }
+
+        .dns-filter {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .dns-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .dns-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .dns-stat-card {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .dns-stat-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1877f2;
+        }
+
+        .dns-stat-card .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1c1e21;
+            margin-bottom: 4px;
+        }
+
+        .dns-stat-card .stat-label {
+            font-size: 12px;
+            color: #65676b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .dns-charts {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .record-type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-align: center;
+            min-width: 45px;
+        }
+
+        .record-type-A {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .record-type-AAAA {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .record-type-CNAME {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+
+        .record-type-MX {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .record-type-TXT {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        .record-type-NS {
+            background: #e0f2f1;
+            color: #00695c;
+        }
+
+        .record-type-SRV {
+            background: #f1f8e9;
+            color: #558b2f;
+        }
+
+        .dns-record-actions {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .dns-record-actions .btn {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .record-priority {
+            font-weight: 600;
+            color: #1c1e21;
+        }
+
+        .record-value {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .record-value:hover {
+            white-space: normal;
+            overflow: visible;
+            background: #f8f9fa;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .ttl-badge {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            background: #f0f2f5;
+            color: #1c1e21;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Record Form Styles */
+        .record-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .record-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .priority-weight-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .record-preview {
+            background: #f8f9fa;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 16px;
+        }
+
+        .record-preview-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1c1e21;
+            margin-bottom: 8px;
+        }
+
+        .record-preview-content {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #65676b;
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #dddfe2;
+        }
+
+        /* Template Styles */
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .template-card {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .template-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-color: #1877f2;
+        }
+
+        .template-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1c1e21;
+            margin-bottom: 8px;
+        }
+
+        .template-description {
+            font-size: 14px;
+            color: #65676b;
+            margin-bottom: 12px;
+        }
+
+        .template-records {
+            font-size: 12px;
+            color: #8a8a8a;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .providers-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dns-stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .record-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .priority-weight-row {
+                grid-template-columns: 1fr;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dns-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dns-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .record-value {
+                max-width: 120px;
+            }
+
+            .modal-container {
+                width: 95%;
+                margin: 20px;
+            }
+
+            .page-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        /* Login Modal */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .login-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 40px;
             width: 100%;
-            padding: 0.75rem;
-            background: #3b82f6;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-logo {
+            font-size: 40px;
+            color: #1877f2;
+            margin-bottom: 16px;
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #1c1e21;
+        }
+
+        .login-subtitle {
+            color: #65676b;
+            margin-bottom: 24px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .metric-card h3 {
+            margin: 0 0 16px 0;
+            color: #2c3e50;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .metric-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 8px 0;
+        }
+        .metric-label {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .metric-change {
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        .metric-change.positive {
+            color: #27ae60;
+        }
+        .metric-change.negative {
+            color: #e74c3c;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        .advanced-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 0;
+            margin-bottom: 30px;
+        }
+        .nav-items {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .nav-item {
             color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        .alert-banner {
+            background: #f39c12;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-banner.critical {
+            background: #e74c3c;
+        }
+        .alert-banner.success {
+            background: #27ae60;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .data-table th {
+            background: #f8f9fa;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .data-table td {
+            padding: 16px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-online { background: #d4edda; color: #155724; }
+        .status-offline { background: #f8d7da; color: #721c24; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden { display: none; }
+        .action-button {
+            padding: 8px 16px;
             border: none;
             border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.15s ease-in-out;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            margin: 0 4px;
         }
-        .btn-login:hover {
-            background: #2563eb;
-        }
-        .btn-login:disabled {
-            background: #9ca3af;
-            cursor: not-allowed;
-        }
-        .error-message {
-            color: #dc2626;
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-            display: none;
-        }
-        .admin-dashboard {
-            display: none;
-        }
-        .admin-nav {
-            background: #1f2937;
+        .action-button.primary {
+            background: #3498db;
             color: white;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
-        .admin-nav h1 {
+        .action-button.primary:hover {
+            background: #2980b9;
+        }
+        .action-button.danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .action-button.danger:hover {
+            background: #c0392b;
+        }
+        .filter-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-group label {
+            font-weight: 500;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .filter-group select, .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            min-width: 150px;
+        }
+
+        /* Bulk DNS Management Styles */
+        .bulk-dns-tabs {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 24px;
+        }
+        
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #65676b;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .tab-btn:hover {
+            color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .tab-btn.active {
+            color: #1877f2;
+            border-bottom-color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .bulk-tab-content {
+            display: none;
+        }
+        
+        .bulk-tab-content.active {
+            display: block;
+        }
+        
+        .bulk-operation-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .bulk-form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .domain-selection-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .domain-selection-container select {
+            min-height: 200px;
+            padding: 8px;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        
+        .domain-textarea {
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            background: #ffffff;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        
+        .domain-textarea:focus {
+            border-color: #1877f2;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+        }
+        
+        .domain-textarea::placeholder {
+            color: #8a8d91;
+            font-style: italic;
+        }
+        
+        .selection-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nameserver-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .nameserver-inputs input {
+            padding: 10px;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+        }
+        
+        .bulk-preview-section {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .bulk-preview-section h4 {
+            margin: 0 0 12px 0;
+            color: #1c1e21;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .preview-container {
+            background: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            padding: 12px;
+            min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .preview-empty {
+            color: #65676b;
+            font-style: italic;
             margin: 0;
-            font-size: 1.5rem;
+            text-align: center;
+            padding: 20px;
         }
-        .admin-nav .user-info {
+        
+        .preview-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #f0f2f5;
+            border-radius: 6px;
+            border-left: 4px solid #1877f2;
+        }
+        
+        .preview-domain {
+            font-weight: 600;
+            color: #1c1e21;
+            margin-bottom: 4px;
+        }
+        
+        .preview-change {
+            font-size: 14px;
+            color: #65676b;
+        }
+        
+        .preview-change.new {
+            color: #42b883;
+        }
+        
+        .preview-change.update {
+            color: #f39c12;
+        }
+        
+        .bulk-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            padding: 16px 0;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .file-upload-area {
+            border: 2px dashed #dddfe2;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #1877f2;
+            background: #f0f2f5;
+        }
+        
+        .upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .upload-placeholder i {
+            font-size: 32px;
+            color: #1877f2;
+        }
+        
+        .upload-placeholder p {
+            margin: 0;
+            font-weight: 500;
+            color: #1c1e21;
+        }
+        
+        .upload-placeholder small {
+            color: #65676b;
+        }
+        
+        .csv-example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        
+        .csv-example pre {
+            margin: 0;
+            font-size: 12px;
+            color: #495057;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .csv-preview-section {
+            margin-top: 24px;
+        }
+        
+        .csv-preview-section h4 {
+            margin: 0 0 16px 0;
+            color: #1c1e21;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .upload-section {
+            margin-bottom: 24px;
+        }
+        
+        .form-hint {
+            color: #65676b;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .card-subtitle {
+            color: #65676b;
+            font-size: 14px;
+            margin: 4px 0 0 0;
+        }
+        
+        /* Security confirmation styles */
+        .security-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 16px 0;
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 8px;
         }
-        .admin-content {
-            padding: 2rem;
+        
+        .security-warning i {
+            color: #f39c12;
+            font-size: 18px;
         }
-        .admin-tabs {
+        
+        .security-warning p {
+            margin: 0;
+            color: #856404;
+            font-weight: 500;
+        }
+        /* Toasts */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 3000;
             display: flex;
-            border-bottom: 1px solid #e5e7eb;
-            margin-bottom: 2rem;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 360px;
         }
-        .admin-tab {
-            padding: 1rem 1.5rem;
+        .toast {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #ffffff;
+            border-left: 4px solid #1877f2;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: #1c1e21;
+            animation: toast-in 200ms ease-out;
+        }
+        .toast.success { border-left-color: #27ae60; }
+        .toast.error { border-left-color: #e74c3c; }
+        .toast.warning { border-left-color: #f39c12; }
+        .toast.info { border-left-color: #1877f2; }
+        .toast .toast-icon { font-size: 16px; margin-top: 2px; }
+        .toast.success .toast-icon { color: #27ae60; }
+        .toast.error .toast-icon { color: #e74c3c; }
+        .toast.warning .toast-icon { color: #f39c12; }
+        .toast.info .toast-icon { color: #1877f2; }
+        .toast .toast-content { flex: 1; }
+        .toast .toast-title { font-weight: 600; margin-bottom: 2px; }
+        .toast .toast-message { font-size: 13px; color: #4b5563; }
+        .toast .toast-close {
             background: none;
             border: none;
             color: #6b7280;
             cursor: pointer;
-            font-weight: 500;
-            border-bottom: 2px solid transparent;
-            transition: all 0.15s ease-in-out;
+            padding: 2px;
+            border-radius: 50%;
         }
-        .admin-tab.active {
-            color: #3b82f6;
-            border-bottom-color: #3b82f6;
+        .toast .toast-close:hover { background: #f0f2f5; }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .admin-tab:hover {
-            color: #374151;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .action-button {
-            padding: 0.5rem 1rem;
-            margin: 0.25rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            transition: all 0.15s ease-in-out;
-        }
-        .btn-primary {
-            background: #3b82f6;
-            color: white;
-        }
-        .btn-danger {
-            background: #dc2626;
-            color: white;
-        }
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-        .action-button:hover {
-            opacity: 0.8;
-        }
-        .status-indicator {
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .status-active {
-            background: #dcfce7;
-            color: #166534;
-        }
-        .status-inactive {
-            background: #fee2e2;
-            color: #991b1b;
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-8px); }
         }
     </style>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen" class="admin-login">
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="login-overlay">
         <div class="login-card">
-            <div class="login-header">
-                <h1><i class="fas fa-shield-alt"></i> DomainVault</h1>
-                <p>Admin Panel</p>
+            <div class="login-logo">
+                <i class="fas fa-globe"></i>
             </div>
+            <h1 class="login-title">DomainVault</h1>
+            <p class="login-subtitle">Domain Portfolio Manager</p>
             <form id="loginForm">
                 <div class="form-group">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" name="username" class="form-input" required>
+                    <input type="text" id="username" class="form-control" placeholder="Username" required>
                 </div>
                 <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" required>
+                    <input type="password" id="password" class="form-control" placeholder="Password" required>
                 </div>
-                <button type="submit" class="btn-login" id="loginBtn">
-                    <span id="loginText">Sign In</span>
-                    <i id="loginSpinner" class="fas fa-spinner fa-spin" style="display: none;"></i>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
                 </button>
-                <div id="errorMessage" class="error-message"></div>
             </form>
         </div>
     </div>
 
-    <!-- Admin Dashboard -->
-    <div id="adminDashboard" class="admin-dashboard">
-        <nav class="admin-nav">
-            <h1><i class="fas fa-shield-alt"></i> DomainVault Admin</h1>
-            <div class="user-info">
-                <span id="userEmail"></span>
-                <button id="logoutBtn" class="action-button btn-secondary">
-                    <i class="fas fa-sign-out-alt"></i> Logout
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-globe"></i>
+                DomainVault
+            </div>
+            <div class="user-menu">
+                <div class="user-avatar">A</div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
                 </button>
             </div>
-        </nav>
+        </div>
+    </header>
 
-        <div class="admin-content">
-            <div class="admin-tabs">
-                <button class="admin-tab active" data-tab="domains">Domains</button>
-                <button class="admin-tab" data-tab="dns">DNS Management</button>
-                <button class="admin-tab" data-tab="categories">Categories</button>
-                <button class="admin-tab" data-tab="projects">Projects</button>
-                <button class="admin-tab" data-tab="credentials">Credentials</button>
-                <button class="admin-tab" data-tab="bulk">Bulk Operations</button>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Overview</div>
+            <a href="#" class="menu-item active" data-section="dashboard">
+                <i class="fas fa-chart-line"></i>
+                Dashboard
+            </a>
+            <a href="#" class="menu-item" data-section="analytics">
+                <i class="fas fa-chart-bar"></i>
+                Analytics
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Management</div>
+            <a href="#" class="menu-item" data-section="domains">
+                <i class="fas fa-globe"></i>
+                Domains
+            </a>
+            <a href="#" class="menu-item" data-section="providers">
+                <i class="fas fa-server"></i>
+                Providers
+            </a>
+            <a href="#" class="menu-item" data-section="dns">
+                <i class="fas fa-network-wired"></i>
+                DNS Management
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Organization</div>
+            <a href="#" class="menu-item" data-section="categories">
+                <i class="fas fa-tags"></i>
+                Categories
+            </a>
+            <a href="#" class="menu-item" data-section="projects">
+                <i class="fas fa-folder"></i>
+                Projects
+            </a>
+            <a href="#" class="menu-item" data-section="credentials">
+                <i class="fas fa-key"></i>
+                Credentials
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Monitoring</div>
+            <a href="#" class="menu-item" data-section="uptime">
+                <i class="fas fa-heartbeat"></i>
+                Uptime Monitoring
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Security & Alerts</div>
+            <a href="#" class="menu-item" data-section="security">
+                <i class="fas fa-shield-alt"></i>
+                Security
+            </a>
+            <a href="#" class="menu-item" data-section="notifications">
+                <i class="fas fa-bell"></i>
+                Notifications
+            </a>
+            <a href="#" class="menu-item" data-section="audit">
+                <i class="fas fa-history"></i>
+                Audit Log
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section active">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard</h1>
+                <p class="page-subtitle">Overview of your domain portfolio</p>
             </div>
 
-            <!-- Domains Tab -->
-            <div id="domainsTab" class="tab-content active">
-                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
-                    <h2>Domain Management</h2>
-                    <button class="action-button btn-primary" onclick="adminApp.triggerSync()">
-                        <i class="fas fa-sync-alt"></i> Sync All
+<div class="stats-grid">
+                <div class="stat-card" id="deletedDomainsCard" onclick="showHiddenDomainsModal()" style="cursor:pointer">
+                    <div class="stat-number" id="deletedDomains">-</div>
+                    <div class="stat-label">Removed from portfolio</div>
+                    <div class="stat-change negative">Click to review & restore</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDomains">-</div>
+                    <div class="stat-label">Total Domains</div>
+                    <div class="stat-change positive" id="domainsChange">+2 this month</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeDomains">-</div>
+                    <div class="stat-label">Active Domains</div>
+                    <div class="stat-change positive" id="activeChange">All systems operational</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="expiringDomains">-</div>
+                    <div class="stat-label">Expiring Soon</div>
+                    <div class="stat-change negative" id="expiringChange">Next 30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalValue">$-</div>
+                    <div class="stat-label">Portfolio Value</div>
+                    <div class="stat-change positive" id="valueChange">+5% this quarter</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Domains</h2>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="recentDomainsTable">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Status</th>
+                                    <th>Expires</th>
+                                    <th>Provider</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading domains...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Analytics</h1>
+                <p class="page-subtitle">Detailed insights and performance metrics</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Portfolio Growth</h2>
+                </div>
+                <div class="card-content">
+                    <div class="chart-container">
+                        <canvas id="portfolioChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Financial Overview</h2>
+                </div>
+                <div class="card-content">
+                    <div class="chart-container">
+                        <canvas id="financialChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Domains Section -->
+        <section id="domains" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Domain Management</h1>
+                <p class="page-subtitle">Manage your domain portfolio</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showDomainSearchModal()">
+                        <i class="fas fa-shopping-cart"></i>
+                        Buy Domains
+                    </button>
+                    <button class="btn btn-secondary" onclick="bulkStatusCheck()">
+                        <i class="fas fa-heartbeat"></i>
+                        Check All Status
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshDomains()">
+                        <i class="fas fa-sync"></i>
+                        Refresh
                     </button>
                 </div>
-                <div id="domainsTable"></div>
             </div>
 
-            <!-- DNS Management Tab -->
-            <div id="dnsTab" class="tab-content">
-                <h2>DNS Management</h2>
-                <div>
-                    <label for="dnsSelect">Select Domain:</label>
-                    <select id="dnsSelect" style="margin-left: 1rem; padding: 0.5rem;">
-                        <option value="">Choose a domain...</option>
-                    </select>
-                    <button class="action-button btn-primary" onclick="adminApp.loadDNSRecords()">
-                        <i class="fas fa-search"></i> Load DNS
-                    </button>
+            <!-- Domain Search & Purchase -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Domain Search & Purchase</h2>
                 </div>
-                <div id="dnsRecords" style="margin-top: 2rem;"></div>
-            </div>
-
-            <!-- Categories Tab -->
-            <div id="categoriesTab" class="tab-content">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2>Categories</h2>
-                    <button class="action-button btn-primary" onclick="adminApp.showCreateCategory()">
-                        <i class="fas fa-plus"></i> Add Category
-                    </button>
-                </div>
-                <div id="categoriesTable"></div>
-            </div>
-
-            <!-- Projects Tab -->
-            <div id="projectsTab" class="tab-content">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2>Projects</h2>
-                    <button class="action-button btn-primary" onclick="adminApp.showCreateProject()">
-                        <i class="fas fa-plus"></i> Add Project
-                    </button>
-                </div>
-                <div id="projectsTable"></div>
-            </div>
-
-            <!-- Credentials Tab -->
-            <div id="credentialsTab" class="tab-content">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2>Provider Credentials</h2>
-                    <button class="action-button btn-primary" onclick="adminApp.showCreateCredentials()">
-                        <i class="fas fa-plus"></i> Add Credentials
-                    </button>
-                </div>
-                <div id="credentialsTable"></div>
-            </div>
-
-            <!-- Bulk Operations Tab -->
-            <div id="bulkTab" class="tab-content">
-                <h2>Bulk Operations</h2>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
-                    
-                    <!-- Bulk Purchase -->
-                    <div style="border: 1px solid #e5e7eb; padding: 1.5rem; border-radius: 8px;">
-                        <h3><i class="fas fa-shopping-cart"></i> Bulk Purchase</h3>
-                        <div class="form-group">
-                            <label>Domains (one per line):</label>
-                            <textarea id="purchaseDomains" rows="5" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"></textarea>
+                <div class="card-content">
+                    <div class="domain-search-container">
+                        <div class="search-form">
+                            <div class="form-group">
+                                <label class="form-label">Domain Search</label>
+                                <div class="search-input-group">
+                                    <textarea 
+                                        id="domainSearchInput" 
+                                        class="form-control" 
+                                        placeholder="Enter domain names to search (one per line or comma-separated):&#10;example1.com&#10;example2.net&#10;mybrand.org"
+                                        rows="4"
+                                    ></textarea>
+                                    <button class="btn btn-primary" onclick="searchDomains()">
+                                        <i class="fas fa-search"></i>
+                                        Search Availability
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Coupon Code (Optional)</label>
+                                <input type="text" id="couponCode" class="form-control" placeholder="Enter coupon code for discounts">
+                            </div>
                         </div>
+                        <div id="searchResults" class="search-results" style="display: none;">
+                            <h4>Search Results</h4>
+                            <div id="searchResultsContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Owned Domains -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Your Domains</h2>
+                    <div class="card-actions">
+                        <input type="text" id="domainsSearchFilter" class="form-control" placeholder="Search domains..." onkeyup="filterDomains()">
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="allDomainsTable">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAllDomains" onchange="toggleSelectAllDomains()">
+                                    </th>
+                                    <th>Domain</th>
+                                    <th>Website Status</th>
+                                    <th>Domain Status</th>
+                                    <th>Expires</th>
+                                    <th>Provider</th>
+                                    <th>Category</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading domains...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="bulk-actions" style="display: none;">
+                        <button class="btn btn-secondary" onclick="bulkStatusCheck()">
+                            <i class="fas fa-heartbeat"></i>
+                            Check Status
+                        </button>
+                        <button class="btn btn-secondary" onclick="bulkCategorize()">
+                            <i class="fas fa-tags"></i>
+                            Categorize
+                        </button>
+                        <button class="btn btn-warning" onclick="bulkRenew()">
+                            <i class="fas fa-redo"></i>
+                            Renew
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Providers Section -->
+        <section id="providers" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Provider Management</h1>
+                <p class="page-subtitle">Manage your domain providers and connections</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddProviderModal()">
+                        <i class="fas fa-plus"></i>
+                        Connect Provider
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshProviders()">
+                        <i class="fas fa-sync"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Auto-sync Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Auto-Sync Status</h2>
+                    <div class="card-actions">
+                        <button id="autoSyncToggle" class="btn btn-success" onclick="toggleAutoSync()">
+                            <i class="fas fa-play"></i>
+                            Start Auto-Sync
+                        </button>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div id="autoSyncStatus" class="sync-status">
+                        <div class="status-indicator offline">
+                            <i class="fas fa-circle"></i>
+                            Auto-Sync Disabled
+                        </div>
+                        <div class="sync-details">
+                            <p>Enable auto-sync to automatically synchronize domains from all connected providers based on their configured intervals.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connected Providers -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Connected Providers</h2>
+                    <div class="card-actions">
+                        <button class="btn btn-secondary" onclick="syncAllProviders()">
+                            <i class="fas fa-sync"></i>
+                            Sync All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div id="connectedProvidersContainer" class="providers-grid">
+                        <div class="loading">
+                            <i class="fas fa-spinner"></i>
+                            Loading connected providers...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supported Providers -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Supported Providers</h2>
+                </div>
+                <div class="card-content">
+                    <div id="supportedProvidersContainer" class="providers-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner"></i>
+                            Loading supported providers...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="dns" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">DNS Management</h1>
+                <p class="page-subtitle">Manage DNS records and configurations for your domains</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAddRecordModal()">
+                        <i class="fas fa-plus"></i>
+                        Add DNS Record
+                    </button>
+                    <button class="btn btn-secondary" onclick="showDNSTemplatesModal()">
+                        <i class="fas fa-layer-group"></i>
+                        Templates
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshDNSRecords()">
+                        <i class="fas fa-sync"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Domain Selection -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Domain Selection</h2>
+                </div>
+                <div class="card-content">
+                    <div class="dns-domain-selector">
                         <div class="form-group">
-                            <label>Provider:</label>
-                            <select id="purchaseProvider" style="width: 100%; padding: 0.5rem;">
-                                <option value="godaddy">GoDaddy</option>
-                                <option value="namecheap">Namecheap</option>
-                                <option value="hostinger">Hostinger</option>
+                            <label class="form-label">Select Domain</label>
+                            <select id="dnsDomainsSelect" class="form-control" onchange="loadDNSRecords()">
+                                <option value="">Choose a domain to manage DNS records...</option>
                             </select>
                         </div>
-                        <button class="action-button btn-primary" onclick="adminApp.bulkPurchase()">
-                            <i class="fas fa-shopping-cart"></i> Purchase Domains
+                        <div class="domain-info" id="selectedDomainInfo" style="display: none;">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <strong>Provider:</strong>
+                                    <span id="domainProvider">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Status:</strong>
+                                    <span id="domainStatus" class="status-badge">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Expires:</strong>
+                                    <span id="domainExpiry">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Name Servers:</strong>
+                                    <span id="domainNameServers">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DNS Records Management -->
+            <div class="card" id="dnsRecordsCard" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">DNS Records</h2>
+                    <div class="card-actions">
+                        <div class="dns-actions">
+                            <button class="btn btn-secondary" onclick="exportDNSRecords()">
+                                <i class="fas fa-download"></i>
+                                Export
+                            </button>
+                            <button class="btn btn-secondary" onclick="showImportDNSModal()">
+                                <i class="fas fa-upload"></i>
+                                Import
+                            </button>
+                            <button class="btn btn-secondary" onclick="syncDNSFromProvider()">
+                                <i class="fas fa-cloud-download-alt"></i>
+                                Sync from provider
+                            </button>
+                            <button class="btn btn-success" onclick="showAddRecordModal()">
+                                <i class="fas fa-plus"></i>
+                                Add Record
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <!-- DNS Records Filter -->
+                    <div class="dns-filter">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Record Type</label>
+                                <select id="recordTypeFilter" class="form-control" onchange="filterDNSRecords()">
+                                    <option value="">All Types</option>
+                                    <option value="A">A</option>
+                                    <option value="AAAA">AAAA</option>
+                                    <option value="CNAME">CNAME</option>
+                                    <option value="MX">MX</option>
+                                    <option value="TXT">TXT</option>
+                                    <option value="NS">NS</option>
+                                    <option value="SRV">SRV</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Name Contains</label>
+                                <input type="text" id="nameFilter" class="form-control" placeholder="Filter by name..." onkeyup="filterDNSRecords()">
+                            </div>
+                            <div class="filter-group">
+                                <label>TTL Range</label>
+                                <select id="ttlFilter" class="form-control" onchange="filterDNSRecords()">
+                                    <option value="">All TTL</option>
+                                    <option value="300">5 minutes (300)</option>
+                                    <option value="1800">30 minutes (1800)</option>
+                                    <option value="3600">1 hour (3600)</option>
+                                    <option value="86400">24 hours (86400)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DNS Records Table -->
+                    <div class="table-container">
+                        <table id="dnsRecordsTable">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Name</th>
+                                    <th>Value</th>
+                                    <th>TTL</th>
+                                    <th>Priority</th>
+                                    <th>Last Modified</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Select a domain to view DNS records
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DNS Analytics -->
+            <div class="card" id="dnsAnalyticsCard" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">DNS Analytics</h2>
+                </div>
+                <div class="card-content">
+                    <div class="dns-stats-grid">
+                        <div class="dns-stat-card">
+                            <div class="stat-number" id="totalRecords">0</div>
+                            <div class="stat-label">Total Records</div>
+                        </div>
+                        <div class="dns-stat-card">
+                            <div class="stat-number" id="recordTypes">0</div>
+                            <div class="stat-label">Record Types</div>
+                        </div>
+                        <div class="dns-stat-card">
+                            <div class="stat-number" id="avgTTL">0</div>
+                            <div class="stat-label">Avg TTL (min)</div>
+                        </div>
+                        <div class="dns-stat-card">
+                            <div class="stat-number" id="lastModified">-</div>
+                            <div class="stat-label">Last Modified</div>
+                        </div>
+                    </div>
+
+                    <div class="dns-charts">
+                        <div class="chart-container">
+                            <canvas id="recordTypesChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk DNS Management -->
+            <div class="card" id="bulkDnsCard">
+                <div class="card-header">
+                    <h2 class="card-title">Bulk DNS Management</h2>
+                    <p class="card-subtitle">Manage DNS settings across multiple domains with security approval</p>
+                </div>
+                <div class="card-content">
+                    <!-- Bulk Operations Tabs -->
+                    <div class="bulk-dns-tabs">
+                        <button class="tab-btn active" data-tab="bulk-ip" onclick="switchBulkTab('bulk-ip')">
+                            <i class="fas fa-network-wired"></i>
+                            Bulk IP Assignment
+                        </button>
+                        <button class="tab-btn" data-tab="bulk-nameservers" onclick="switchBulkTab('bulk-nameservers')">
+                            <i class="fas fa-server"></i>
+                            Nameserver Changes
+                        </button>
+                        <button class="tab-btn" data-tab="bulk-upload" onclick="switchBulkTab('bulk-upload')">
+                            <i class="fas fa-upload"></i>
+                            CSV Upload
                         </button>
                     </div>
 
-                    <!-- Bulk Decommission -->
-                    <div style="border: 1px solid #e5e7eb; padding: 1.5rem; border-radius: 8px;">
-                        <h3><i class="fas fa-times-circle"></i> Bulk Decommission</h3>
-                        <p>Select domains to decommission:</p>
-                        <div id="decommissionDomains"></div>
-                        <div style="margin: 1rem 0;">
-                            <label>
-                                <input type="checkbox" id="stopAutoRenew" checked> Stop Auto-Renewal
-                            </label>
+                    <!-- Bulk IP Assignment Tab -->
+                    <div id="bulk-ip" class="bulk-tab-content active">
+                        <div class="bulk-operation-section">
+                            <div class="bulk-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Select Domains</label>
+                                    <div class="domain-selection-container">
+                                        <textarea id="bulkIpDomains" class="form-control domain-textarea" rows="8" 
+                                                placeholder="Enter domain names (one per line):
+example.com
+test.com
+mysite.org
+
+Or paste a list of domains here..."></textarea>
+                                        <div class="selection-actions">
+                                            <button class="btn btn-sm btn-secondary" onclick="selectAllDomains('bulkIpDomains')" type="button">
+                                                <i class="fas fa-list"></i>
+                                                Load All Domains
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="clearDomainSelection('bulkIpDomains')" type="button">
+                                                <i class="fas fa-eraser"></i>
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="form-hint">Enter one domain per line. You can type or paste domain names here.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">New IP Address</label>
+                                    <input type="text" id="bulkNewIp" class="form-control" placeholder="192.168.1.100" pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$">
+                                    <small class="form-hint">Enter the IP address to assign to all selected domains (A record)</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Record Name (optional)</label>
+                                    <input type="text" id="bulkRecordName" class="form-control" placeholder="www" value="@">
+                                    <small class="form-hint">@ for root domain, www for www subdomain, or custom name</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">TTL (seconds)</label>
+                                    <select id="bulkTtl" class="form-control">
+                                        <option value="300">5 minutes (300)</option>
+                                        <option value="1800">30 minutes (1800)</option>
+                                        <option value="3600" selected>1 hour (3600)</option>
+                                        <option value="86400">24 hours (86400)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bulk-preview-section">
+                                <h4>Preview Changes</h4>
+                                <div id="bulkIpPreview" class="preview-container">
+                                    <p class="preview-empty">Select domains and enter IP to preview changes</p>
+                                </div>
+                            </div>
+                            <div class="bulk-actions">
+                                <button class="btn btn-primary" onclick="previewBulkIpChanges()">
+                                    <i class="fas fa-eye"></i>
+                                    Preview Changes
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('ip')" disabled id="bulkIpApplyBtn">
+                                    <i class="fas fa-check"></i>
+                                    Apply Changes
+                                </button>
+                            </div>
                         </div>
-                        <div style="margin: 1rem 0;">
-                            <label>
-                                <input type="checkbox" id="transferOut"> Transfer Out
-                            </label>
+                    </div>
+
+                    <!-- Nameserver Changes Tab -->
+                    <div id="bulk-nameservers" class="bulk-tab-content">
+                        <div class="bulk-operation-section">
+                            <div class="bulk-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Select Domains</label>
+                                    <div class="domain-selection-container">
+                                        <textarea id="bulkNsDomains" class="form-control domain-textarea" rows="8" 
+                                                placeholder="Enter domain names (one per line):
+example.com
+test.com
+mysite.org
+
+Or paste a list of domains here..."></textarea>
+                                        <div class="selection-actions">
+                                            <button class="btn btn-sm btn-secondary" onclick="selectAllDomains('bulkNsDomains')" type="button">
+                                                <i class="fas fa-list"></i>
+                                                Load All Domains
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="clearDomainSelection('bulkNsDomains')" type="button">
+                                                <i class="fas fa-eraser"></i>
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="form-hint">Enter one domain per line. You can type or paste domain names here.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">New Nameservers</label>
+                                    <div class="nameserver-inputs">
+                                        <input type="text" id="ns1" class="form-control" placeholder="ns1.example.com">
+                                        <input type="text" id="ns2" class="form-control" placeholder="ns2.example.com">
+                                        <input type="text" id="ns3" class="form-control" placeholder="ns3.example.com (optional)">
+                                        <input type="text" id="ns4" class="form-control" placeholder="ns4.example.com (optional)">
+                                    </div>
+                                    <small class="form-hint">Enter at least 2 nameservers. Additional nameservers are optional.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Nameserver Presets</label>
+                                    <select id="nsPresets" class="form-control" onchange="applyNameserverPreset()">
+                                        <option value="">Choose preset...</option>
+                                        <option value="cloudflare">Cloudflare</option>
+                            <option value="godaddy">GoDaddy</option>
+                            <option value="namecheap">Namecheap</option>
+                            <option value="hostinger">Hostinger</option>
+                                        <option value="aws">AWS Route 53</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bulk-preview-section">
+                                <h4>Preview Changes</h4>
+                                <div id="bulkNsPreview" class="preview-container">
+                                    <p class="preview-empty">Select domains and enter nameservers to preview changes</p>
+                                </div>
+                            </div>
+                            <div class="bulk-actions">
+                                <button class="btn btn-primary" onclick="previewBulkNsChanges()">
+                                    <i class="fas fa-eye"></i>
+                                    Preview Changes
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('nameservers')" disabled id="bulkNsApplyBtn">
+                                    <i class="fas fa-check"></i>
+                                    Apply Changes
+                                </button>
+                            </div>
                         </div>
-                        <button class="action-button btn-danger" onclick="adminApp.bulkDecommission()">
-                            <i class="fas fa-times-circle"></i> Decommission Selected
+                    </div>
+
+                    <!-- CSV Upload Tab -->
+                    <div id="bulk-upload" class="bulk-tab-content">
+                        <div class="bulk-operation-section">
+                            <div class="upload-section">
+                                <div class="form-group">
+                                    <label class="form-label">Upload CSV File</label>
+                                    <div class="file-upload-area" id="csvUploadArea">
+                                        <input type="file" id="csvFileInput" accept=".csv" onchange="handleCsvUpload(event)" style="display: none;">
+                                        <div class="upload-placeholder" onclick="document.getElementById('csvFileInput').click()">
+                                            <i class="fas fa-upload"></i>
+                                            <p>Click to select CSV file or drag and drop</p>
+                                            <small>Expected format: domain,record_type,name,value,ttl,nameserver1,nameserver2</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">CSV Format Example</label>
+                                    <div class="csv-example">
+                                        <pre>domain,record_type,name,value,ttl,nameserver1,nameserver2
+example.com,A,@,192.168.1.100,3600,ns1.cloudflare.com,ns2.cloudflare.com
+test.com,A,www,192.168.1.101,3600,ns1.godaddy.com,ns2.godaddy.com
+mysite.org,CNAME,blog,myblog.wordpress.com,1800,,</pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="csv-preview-section" id="csvPreviewSection" style="display: none;">
+                                <h4>Parsed Data Preview</h4>
+                                <div class="table-container">
+                                    <table id="csvPreviewTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Domain</th>
+                                                <th>Current Settings</th>
+                                                <th>Proposed Changes</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="bulk-actions" id="csvActions" style="display: none;">
+                                <button class="btn btn-secondary" onclick="downloadCsvTemplate()">
+                                    <i class="fas fa-download"></i>
+                                    Download Template
+                                </button>
+                                <button class="btn btn-primary" onclick="validateCsvData()">
+                                    <i class="fas fa-check-circle"></i>
+                                    Validate Data
+                                </button>
+                                <button class="btn btn-warning" onclick="showBulkConfirmationModal('csv')" disabled id="csvApplyBtn">
+                                    <i class="fas fa-upload"></i>
+                                    Apply CSV Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="categories" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Categories</h1>
+                <p class="page-subtitle">Organize your domains with categories</p>
+            </div>
+            <div class="card">
+                <div class="card-content">
+                    <p>Category management functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="projects" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Projects</h1>
+                <p class="page-subtitle">Group domains by projects</p>
+            </div>
+            <div class="card">
+                <div class="card-content">
+                    <p>Project management functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="credentials" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Credentials</h1>
+                <p class="page-subtitle">Manage API credentials for providers</p>
+            </div>
+            <div class="card">
+                <div class="card-content">
+                    <p>Credentials management functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="security" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Security</h1>
+                <p class="page-subtitle">Security overview and threat monitoring</p>
+            </div>
+            <div class="card">
+                <div class="card-content">
+                    <p>Security dashboard functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="notifications" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Notifications</h1>
+                <p class="page-subtitle">Configure alerts and notifications</p>
+            </div>
+            <div class="card">
+                <div class="card-content">
+                    <p>Notification management functionality coming soon...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="uptime" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Uptime Monitoring</h1>
+                <p class="page-subtitle">Monitor your domains' uptime with UptimeRobot integration</p>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="syncUptimeMonitors()">
+                        <i class="fas fa-sync"></i>
+                        Sync Monitors
+                    </button>
+                    <button class="btn btn-secondary" onclick="createBulkMonitors()">
+                        <i class="fas fa-plus"></i>
+                        Create Monitors
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshUptimeData()">
+                        <i class="fas fa-refresh"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- UptimeRobot Configuration Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">UptimeRobot Status</h2>
+                </div>
+                <div class="card-content">
+                    <div id="uptimeRobotStatus" class="sync-status">
+                        <div class="status-indicator offline">
+                            <i class="fas fa-circle"></i>
+                            Checking Configuration...
+                        </div>
+                        <div class="sync-details">
+                            <p>Verifying UptimeRobot API configuration and connectivity.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uptime Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalMonitors">-</div>
+                    <div class="stat-label">Total Monitors</div>
+                    <div class="stat-change positive" id="monitorsChange">UptimeRobot integration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="overallUptime">-</div>
+                    <div class="stat-label">Overall Uptime</div>
+                    <div class="stat-change positive" id="uptimeChange">Last 30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="avgResponseTime">-</div>
+                    <div class="stat-label">Avg Response Time</div>
+                    <div class="stat-change positive" id="responseTimeChange">Milliseconds</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeIncidents">-</div>
+                    <div class="stat-label">Active Incidents</div>
+                    <div class="stat-change negative" id="incidentsChange">Currently down</div>
+                </div>
+            </div>
+
+            <!-- Domain Monitoring Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Domain Monitoring Overview</h2>
+                    <div class="card-actions">
+                        <input type="text" id="monitoringSearchFilter" class="form-control" placeholder="Search domains..." onkeyup="filterMonitoringTable()">
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="domainMonitoringTable">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Monitor Status</th>
+                                    <th>Uptime %</th>
+                                    <th>Response Time</th>
+                                    <th>Last Check</th>
+                                    <th>Downtime</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading monitoring data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uptime Analytics -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Uptime Analytics</h2>
+                </div>
+                <div class="card-content">
+                    <div class="chart-container">
+                        <canvas id="uptimeChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Incidents -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Incidents</h2>
+                </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="incidentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading incidents...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="audit" class="content-section">
+            <div class="page-header">
+                <h1 class="page-title">Audit Log</h1>
+                <p class="page-subtitle">Track all system activities and changes</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Events Over Time</h2>
+                </div>
+                <div class="card-content">
+                    <div class="chart-container">
+                        <canvas id="auditEventsChart" width="600" height="220"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">System Events</h2>
+                    <div class="card-actions">
+                        <input type="date" id="auditStartDate" class="form-control" />
+                        <input type="date" id="auditEndDate" class="form-control" />
+                        <select id="auditTypeFilter" class="form-control">
+                            <option value="">All Types</option>
+                            <option value="login">Login</option>
+                            <option value="logout">Logout</option>
+                            <option value="dns_create">DNS Create</option>
+                            <option value="dns_update">DNS Update</option>
+                            <option value="dns_delete">DNS Delete</option>
+                            <option value="bulk_operation">Bulk Operation</option>
+                            <option value="security_violation">Security Violation</option>
+                        </select>
+                        <input type="text" id="auditUserSearch" class="form-control" placeholder="Search user..." />
+                        <button class="btn btn-secondary" onclick="refreshAuditLog()">
+                            <i class="fas fa-sync"></i> Refresh
                         </button>
                     </div>
                 </div>
+                <div class="card-content">
+                    <div class="table-container">
+                        <table id="auditTable">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User</th>
+                                    <th>Event</th>
+                                    <th>Resource</th>
+                                    <th>Action</th>
+                                    <th>IP</th>
+                                    <th>Result</th>
+                                    <th>Risk</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8" class="loading">
+                                        <i class="fas fa-spinner"></i>
+                                        Loading audit events...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Add Provider Modal -->
+    <div id="addProviderModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Connect Provider</h2>
+                <button class="modal-close" onclick="hideAddProviderModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <form id="addProviderForm">
+                    <div class="form-group">
+                        <label class="form-label">Provider</label>
+                        <select id="providerSelect" class="form-control" required>
+                            <option value="">Select a provider...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" id="providerName" class="form-control" placeholder="My Domain Provider" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Account Name</label>
+                        <input type="text" id="accountName" class="form-control" placeholder="account@example.com" required>
+                    </div>
+                    
+                    <div id="credentialsContainer">
+                        <!-- Dynamic credential fields will be added here -->
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="testConnection" checked>
+                                Test connection before saving
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableAutoSync">
+                                Enable auto-sync
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="autoSyncSettings" class="form-group" style="display: none;">
+                        <label class="form-label">Sync Interval (hours)</label>
+                        <select id="syncIntervalHours" class="form-control">
+                            <option value="1">Every hour</option>
+                            <option value="6">Every 6 hours</option>
+                            <option value="12">Every 12 hours</option>
+                            <option value="24" selected>Daily</option>
+                            <option value="168">Weekly</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="initialSync">
+                                Run initial sync after connecting
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideAddProviderModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="testProviderConnection()" id="testBtn">
+                    <i class="fas fa-check"></i>
+                    Test Connection
+                </button>
+                <button type="button" class="btn btn-success" onclick="connectProvider()" id="connectBtn">
+                    <i class="fas fa-plus"></i>
+                    Connect Provider
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Provider Details Modal -->
+    <div id="providerDetailsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Provider Details</h2>
+                <button class="modal-close" onclick="hideProviderDetailsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div id="providerDetailsContent">
+                    <!-- Provider details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideProviderDetailsModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="editProvider()" id="editProviderBtn">
+                    <i class="fas fa-edit"></i>
+                    Edit
+                </button>
+                <button type="button" class="btn btn-success" onclick="syncProvider()" id="syncProviderBtn">
+                    <i class="fas fa-sync"></i>
+                    Sync Now
+                </button>
+                <button type="button" class="btn btn-danger" onclick="removeProvider()" id="removeProviderBtn">
+                    <i class="fas fa-trash"></i>
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add DNS Record Modal -->
+    <div id="addDNSRecordModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Add DNS Record</h2>
+                <button class="modal-close" onclick="hideAddRecordModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <form id="addDNSRecordForm">
+                    <div class="record-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Record Type</label>
+                            <select id="recordType" class="form-control" required onchange="updateRecordForm()">
+                                <option value="">Select type...</option>
+                                <option value="A">A - IPv4 Address</option>
+                                <option value="AAAA">AAAA - IPv6 Address</option>
+                                <option value="CNAME">CNAME - Canonical Name</option>
+                                <option value="MX">MX - Mail Exchange</option>
+                                <option value="TXT">TXT - Text Record</option>
+                                <option value="NS">NS - Name Server</option>
+                                <option value="SRV">SRV - Service Record</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Name/Subdomain</label>
+                            <input type="text" id="recordName" class="form-control" placeholder="@ for root, www for subdomain" required>
+                            <small class="credentials-help">Use @ for root domain, or enter subdomain name</small>
+                        </div>
+                        
+                        <div class="form-group record-form-full">
+                            <label class="form-label">Value</label>
+                            <input type="text" id="recordValue" class="form-control" placeholder="Record value" required>
+                            <small class="credentials-help" id="recordValueHelp">Enter the record value</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">TTL (seconds)</label>
+                            <select id="recordTTL" class="form-control">
+                                <option value="300">5 minutes (300)</option>
+                                <option value="1800">30 minutes (1800)</option>
+                                <option value="3600" selected>1 hour (3600)</option>
+                                <option value="14400">4 hours (14400)</option>
+                                <option value="86400">24 hours (86400)</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="customTTLGroup" style="display: none;">
+                            <label class="form-label">Custom TTL</label>
+                            <input type="number" id="customTTL" class="form-control" min="60" max="604800" placeholder="60-604800">
+                        </div>
+                    </div>
+                    
+                    <!-- Priority/Weight/Port for MX and SRV records -->
+                    <div id="priorityWeightSection" class="priority-weight-row" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            <input type="number" id="recordPriority" class="form-control" min="0" max="65535">
+                        </div>
+                        <div class="form-group" id="weightGroup" style="display: none;">
+                            <label class="form-label">Weight</label>
+                            <input type="number" id="recordWeight" class="form-control" min="0" max="65535">
+                        </div>
+                        <div class="form-group" id="portGroup" style="display: none;">
+                            <label class="form-label">Port</label>
+                            <input type="number" id="recordPort" class="form-control" min="1" max="65535">
+                        </div>
+                    </div>
+                    
+                    <!-- Record Preview -->
+                    <div class="record-preview" id="recordPreview" style="display: none;">
+                        <div class="record-preview-title">Record Preview</div>
+                        <div class="record-preview-content" id="recordPreviewContent"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideAddRecordModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="previewDNSRecord()">Preview</button>
+                <button type="button" class="btn btn-success" onclick="saveDNSRecord()">
+                    <i class="fas fa-save"></i>
+                    Save Record
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DNS Templates Modal -->
+    <div id="dnsTemplatesModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">DNS Templates</h2>
+                <button class="modal-close" onclick="hideDNSTemplatesModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <p>Choose a template to quickly set up common DNS configurations:</p>
+                <div class="template-grid" id="dnsTemplatesGrid">
+                    <!-- Templates will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideDNSTemplatesModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import DNS Records Modal -->
+    <div id="importDNSModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Import DNS Records</h2>
+                <button class="modal-close" onclick="hideImportDNSModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <form id="importDNSForm">
+                    <div class="form-group">
+                        <label class="form-label">Import Format</label>
+                        <select id="importFormat" class="form-control">
+                            <option value="bind">BIND Zone File</option>
+                            <option value="csv">CSV Format</option>
+                            <option value="json">JSON Format</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">DNS Records Data</label>
+                        <textarea id="importData" class="form-control" rows="10" 
+                                placeholder="Paste your DNS records here..."></textarea>
+                        <small class="credentials-help">Paste your DNS records in the selected format</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="replaceRecords">
+                                Replace all existing records
+                            </label>
+                        </div>
+                        <small class="credentials-help">If checked, all existing records will be deleted before import</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideImportDNSModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="previewImportDNS()">Preview</button>
+                <button type="button" class="btn btn-success" onclick="importDNSRecords()">
+                    <i class="fas fa-upload"></i>
+                    Import Records
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit DNS Record Modal -->
+    <div id="editDNSRecordModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit DNS Record</h2>
+                <button class="modal-close" onclick="hideEditRecordModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <form id="editDNSRecordForm">
+                    <!-- Same form structure as add record -->
+                    <div class="record-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Record Type</label>
+                            <select id="editRecordType" class="form-control" required onchange="updateEditRecordForm()">
+                                <option value="A">A - IPv4 Address</option>
+                                <option value="AAAA">AAAA - IPv6 Address</option>
+                                <option value="CNAME">CNAME - Canonical Name</option>
+                                <option value="MX">MX - Mail Exchange</option>
+                                <option value="TXT">TXT - Text Record</option>
+                                <option value="NS">NS - Name Server</option>
+                                <option value="SRV">SRV - Service Record</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Name/Subdomain</label>
+                            <input type="text" id="editRecordName" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group record-form-full">
+                            <label class="form-label">Value</label>
+                            <input type="text" id="editRecordValue" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">TTL (seconds)</label>
+                            <input type="number" id="editRecordTTL" class="form-control" min="60" max="604800">
+                        </div>
+                    </div>
+                    
+                    <div id="editPriorityWeightSection" class="priority-weight-row" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            <input type="number" id="editRecordPriority" class="form-control" min="0" max="65535">
+                        </div>
+                        <div class="form-group" id="editWeightGroup" style="display: none;">
+                            <label class="form-label">Weight</label>
+                            <input type="number" id="editRecordWeight" class="form-control" min="0" max="65535">
+                        </div>
+                        <div class="form-group" id="editPortGroup" style="display: none;">
+                            <label class="form-label">Port</label>
+                            <input type="number" id="editRecordPort" class="form-control" min="1" max="65535">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideEditRecordModal()">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="updateDNSRecord()">
+                    <i class="fas fa-save"></i>
+                    Update Record
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk DNS Confirmation Modal -->
+    <div id="bulkConfirmationModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Confirm Bulk DNS Changes</h2>
+                <button class="modal-close" onclick="hideBulkConfirmationModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="security-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>You are about to make changes to multiple domains. This action cannot be undone.</p>
+                </div>
+                
+                <div id="bulkConfirmationSummary">
+                    <!-- Will be populated with change summary -->
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Enter your password to confirm:</label>
+                    <input type="password" id="bulkConfirmPassword" class="form-control" placeholder="Admin password" required>
+                    <small class="form-hint">Password confirmation is required for bulk DNS operations</small>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="confirmBulkChanges">
+                            I understand that these changes will affect multiple domains and acknowledge the security implications
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideBulkConfirmationModal()">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkChanges()" id="executeBulkBtn" disabled>
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Execute Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Domain Search Modal -->
+    <div id="domainSearchModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Domain Search & Purchase</h2>
+                <button class="modal-close" onclick="hideDomainSearchModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="domain-search-container">
+                    <div class="search-form">
+                        <div class="form-group">
+                            <label class="form-label">Domain Search</label>
+                            <div class="search-input-group">
+                                <textarea 
+                                    id="modalDomainSearchInput" 
+                                    class="form-control" 
+                                    placeholder="Enter domain names to search (one per line or comma-separated):"
+                                    rows="3"
+                                ></textarea>
+                                <button class="btn btn-primary" onclick="searchDomainsModal()">
+                                    <i class="fas fa-search"></i>
+                                    Search
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Coupon Code (Optional)</label>
+                            <input type="text" id="modalCouponCode" class="form-control" placeholder="Enter coupon code">
+                        </div>
+                    </div>
+                    
+                    <div id="modalSearchResults" class="search-results" style="display: none;">
+                        <h4>Search Results</h4>
+                        <div id="modalSearchResultsContainer"></div>
+                        
+                        <div id="providerSelection" class="provider-selection" style="display: none;">
+                            <h5>Select Provider for Purchase</h5>
+                            <div id="providerOptions" class="provider-options">
+                                <!-- Provider options will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideDomainSearchModal()">Close</button>
+                <button type="button" class="btn btn-success" onclick="purchaseSelectedDomains()" id="purchaseBtn" style="display: none;">
+                    <i class="fas fa-shopping-cart"></i>
+                    Purchase Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Website Status Details Modal -->
+    <div id="websiteStatusModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Website Status Details</h2>
+                <button class="modal-close" onclick="hideWebsiteStatusModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div id="websiteStatusContent">
+                    <!-- Status details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideWebsiteStatusModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="recheckWebsiteStatus()" id="recheckBtn">
+                    <i class="fas fa-sync"></i>
+                    Recheck Status
+                </button>
             </div>
         </div>
     </div>
 
     <script src="/static/js/admin.js"></script>
+    <!-- Hidden Domains Modal -->
+    <div id="hiddenDomainsModal" class="modal-overlay" style="display:none;">
+        <div class="modal-container" style="max-width:900px; max-height:90vh;">
+            <div class="modal-header">
+                <h2 class="modal-title">Removed Domains</h2>
+                <button class="modal-close" onclick="hideHiddenDomainsModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-content" style="overflow-y:auto;">
+<div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:12px; gap:12px;">
+                    <input id="hiddenDomainsSearch" class="form-control" placeholder="Search removed domains…" style="max-width:320px;">
+                    <div id="hiddenDomainsMeta" style="font-size:13px; color:#65676b;">0 results</div>
+                </div>
+                <div class="table-container">
+                    <table id="hiddenDomainsTable">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Provider</th>
+                                <th>Expires</th>
+                                <th>Removed At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="5" class="loading"><i class="fas fa-spinner"></i> Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="hiddenDomainsPager" style="display:flex; justify-content: flex-end; align-items:center; gap:8px; margin-top:12px;">
+                    <button class="btn btn-secondary" id="hiddenPrevBtn" onclick="hiddenPrevPage()" disabled>
+                        <i class="fas fa-chevron-left"></i> Prev
+                    </button>
+                    <span id="hiddenPageInfo" style="font-size:13px; color:#65676b;">Page 1</span>
+                    <button class="btn btn-secondary" id="hiddenNextBtn" onclick="hiddenNextPage()" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideHiddenDomainsModal()">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

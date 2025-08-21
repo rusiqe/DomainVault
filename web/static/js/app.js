@@ -564,8 +564,161 @@ class DomainVaultApp {
     }
 
     viewDomain(domainId) {
-        // Placeholder for domain detail view
-        this.showToast(`View domain: ${domainId}`, 'info');
+        const domain = (this.domains || []).find(d => d.id === domainId);
+        if (!domain) {
+            this.showToast('Domain not found', 'error');
+            return;
+        }
+        this.openDomainModal(domain);
+    }
+
+    openDomainModal(domain) {
+        // Build modal elements
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.id = 'domainDetailsOverlay';
+
+        // Compute derived values
+        const daysLeft = this.calculateDaysLeft(domain.expires_at);
+        const status = this.getDomainStatus(daysLeft);
+        const statusClass = this.getStatusClass(status);
+        const daysClass = this.getDaysClass(daysLeft);
+
+        const autoRenewText = domain.auto_renew ? 'Enabled' : 'Disabled';
+        const autoRenewClass = domain.auto_renew ? 'status-active' : 'status-inactive';
+        const renewalPrice = (domain.renewal_price !== undefined && domain.renewal_price !== null)
+            ? `$${Number(domain.renewal_price).toFixed(2)}`
+            : '—';
+
+        const httpStatus = domain.http_status ?? '—';
+        const statusMessage = domain.status_message || (httpStatus === 200 ? 'OK' : (httpStatus === '—' ? '—' : 'Check site'));
+        const lastStatusCheck = domain.last_status_check ? this.formatDate(domain.last_status_check) : '—';
+
+        const tags = Array.isArray(domain.tags) ? domain.tags : [];
+
+        // Modal container
+        const container = document.createElement('div');
+        container.className = 'modal-container';
+        container.innerHTML = `
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-globe"></i>
+                    ${domain.name}
+                </h3>
+                <button class="modal-close" aria-label="Close details" id="domainModalCloseBtn">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title"><i class="fas fa-info-circle"></i> Overview</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>Provider</strong>
+                                <span>${this.capitalizeFirst(domain.provider || '—')}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Expires</strong>
+                                <span>${this.formatDate(domain.expires_at)}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Days Left</strong>
+                                <span class="days-left ${daysClass}">${daysLeft >= 0 ? daysLeft : 'Expired'}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Status</strong>
+                                <span class="status-badge ${statusClass}">${status}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Auto-Renew</strong>
+                                <span class="status-badge ${autoRenewClass}">${autoRenewText}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Renewal Price</strong>
+                                <span>${renewalPrice}</span>
+                            </div>
+                        </div>
+                        ${tags.length ? `
+                        <div style="margin-top:16px;">
+                            <strong style="display:block; margin-bottom:8px; color:#374151; text-transform:uppercase; font-size:12px; letter-spacing:.05em;">Tags</strong>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                ${tags.map(t => `<span style="background:#f1f5f9; color:#374151; padding:4px 8px; border-radius:9999px; font-size:12px; border:1px solid #e5e7eb;">${t}</span>`).join('')}
+                            </div>
+                        </div>` : ''}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title"><i class="fas fa-heartbeat"></i> Website Status</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>HTTP Status</strong>
+                                <span class="website-status ${httpStatus === 200 ? 'status-200' : (httpStatus === '—' ? '' : 'status-error')}">${httpStatus}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Last Check</strong>
+                                <span>${lastStatusCheck}</span>
+                            </div>
+                            <div class="info-item" style="grid-column: 1 / -1;">
+                                <strong>Message</strong>
+                                <span>${statusMessage}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                ${domain.project_id || domain.category_id ? `
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title"><i class="fas fa-folder"></i> Organization</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="info-grid">
+                            ${domain.category_id ? `
+                            <div class="info-item">
+                                <strong>Category</strong>
+                                <span>${domain.category_id}</span>
+                            </div>` : ''}
+                            ${domain.project_id ? `
+                            <div class="info-item">
+                                <strong>Project</strong>
+                                <span>${domain.project_id}</span>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                </div>` : ''}
+            </div>
+            <div class="modal-footer">
+                <a href="http://${domain.name}" target="_blank" rel="noopener" class="btn btn-secondary">
+                    <i class="fas fa-external-link-alt"></i> Open Site
+                </a>
+                <button class="btn btn-primary" id="domainModalCloseBtnFooter">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        `;
+
+        overlay.appendChild(container);
+        document.body.appendChild(overlay);
+
+        // Close handlers
+        const close = () => this.closeDomainModal();
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+        container.querySelector('#domainModalCloseBtn').addEventListener('click', close);
+        container.querySelector('#domainModalCloseBtnFooter').addEventListener('click', close);
+    }
+
+    closeDomainModal() {
+        const overlay = document.getElementById('domainDetailsOverlay');
+        if (overlay) {
+            document.body.removeChild(overlay);
+        }
     }
 }
 

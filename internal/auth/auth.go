@@ -94,6 +94,11 @@ func (a *AuthService) ValidateToken(token string) (*types.User, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 
+	// Check if session is nil
+	if session == nil {
+		return nil, fmt.Errorf("invalid token")
+	}
+
 	// Check if session is expired
 	if time.Now().After(session.ExpiresAt) {
 		// Clean up expired session

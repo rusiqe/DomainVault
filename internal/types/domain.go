@@ -21,6 +21,7 @@ type Domain struct {
 	RenewalPrice *float64 `json:"renewal_price,omitempty" db:"renewal_price"` // Annual renewal cost
 	Status      string    `json:"status" db:"status"`                      // active, expired, transferred, etc.
 	Tags        TagsSlice `json:"tags,omitempty" db:"tags"`                // Organization tags
+	Visible     bool      `json:"visible" db:"visible"`                    // Soft-delete visibility flag
 	
 	// HTTP Status monitoring
 	HTTPStatus      *int       `json:"http_status,omitempty" db:"http_status"`           // Last HTTP status code
@@ -46,6 +47,7 @@ type Domain struct {
 // DomainSummary provides aggregated domain statistics
 type DomainSummary struct {
 	Total       int                    `json:"total"`
+	Hidden      int                    `json:"hidden"`
 	ByProvider  map[string]int         `json:"by_provider"`
 	ExpiringIn  map[string]int         `json:"expiring_in"` // "30_days", "90_days", etc.
 	LastSync    time.Time              `json:"last_sync"`
@@ -61,6 +63,8 @@ type DomainFilter struct {
 	ProjectID    *string   `json:"project_id,omitempty"`
 	Limit        int       `json:"limit,omitempty"`
 	Offset       int       `json:"offset,omitempty"`
+	IncludeHidden bool     `json:"include_hidden,omitempty"` // Include domains with visible=false
+	OnlyHidden   bool      `json:"only_hidden,omitempty"`    // Return only hidden domains
 }
 
 // Category represents a domain categorization

@@ -106,6 +106,28 @@ func loadProviders() []ProviderConfig {
 		})
 	}
 
+	// Cloudflare DNS configuration (DNS-only provider)
+	if cfToken := getEnvString("CLOUDFLARE_API_TOKEN", ""); cfToken != "" {
+		providers = append(providers, ProviderConfig{
+			Name:    "cloudflare",
+			Enabled: true,
+			Credentials: map[string]interface{}{
+				"api_token": cfToken,
+			},
+		})
+	}
+
+	// Mock provider configuration (for testing and demo purposes)
+	if getEnvBool("ENABLE_MOCK_PROVIDER", false) {
+		providers = append(providers, ProviderConfig{
+			Name:    "mock",
+			Enabled: true,
+			Credentials: map[string]interface{}{
+				"mock": true, // Mock provider doesn't need real credentials
+			},
+		})
+	}
+
 	return providers
 }
 

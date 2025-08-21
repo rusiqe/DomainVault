@@ -964,5 +964,8 @@ func NewRepo(dsn string) (DomainRepository, error) {
 	if strings.HasPrefix(dsn, "mock://") {
 		return NewMockRepo(), nil
 	}
+	if strings.HasPrefix(dsn, "sqlite://") || strings.HasSuffix(dsn, ".db") || strings.HasSuffix(dsn, ".sqlite") {
+		return NewSQLiteRepo(dsn)
+	}
 	return NewPostgresRepo(dsn)
 }

@@ -494,9 +494,49 @@ func (c *Client) ResumeMonitor(monitorID int) error {
 		ID:     monitorID,
 		Status: MonitorStatusNotCheckedYet, // This will start monitoring
 	}
-	
+
 	_, err := c.UpdateMonitor(req)
 	return err
+}
+
+// GetMonitorLogs retrieves logs for monitors
+func (c *Client) GetMonitorLogs(req *GetMonitorLogsRequest) ([]MonitorLog, error) {
+	params := make(map[string]interface{})
+	
+	if len(req.MonitorIDs) > 0 {
+		params["monitors"] = req.MonitorIDs
+	}
+	if req.Limit > 0 {
+		params["limit"] = req.Limit
+	}
+	if req.Offset > 0 {
+		params["offset"] = req.Offset
+	}
+	if req.StartDate > 0 {
+		params["start_date"] = req.StartDate
+	}
+	if req.EndDate > 0 {
+		params["end_date"] = req.EndDate
+	}
+	if req.Timezone != "" {
+		params["timezone"] = req.Timezone
+	}
+	
+	body, err := c.makeRequest("/getLogs", params)
+	if err != nil {
+		return nil, err
+	}
+	
+	if err := checkAPIResponse(body); err != nil {
+		return nil, err
+	}
+	
+	var response GetMonitorLogsResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse monitor logs response: %w", err)
+	}
+	
+	return response.Logs, nil
 }
 
 // GetMonitorStats gets detailed statistics for a monitor
